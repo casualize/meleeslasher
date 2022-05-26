@@ -1,0 +1,11 @@
+"admortem"
+{
+	"base"				"base"
+	"title"				"ad mortem"
+	"maps"				"^ms_"
+	"menusystem"			"1"
+
+	"settings"
+	{
+	}
+}
