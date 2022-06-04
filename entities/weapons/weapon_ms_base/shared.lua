@@ -55,6 +55,8 @@ SWEP.slashtag = 0 -- might get deprecated
 SWEP.m_soundRelease = {"vo/npc/male01/pain04","vo/npc/male01/pain03"} -- might get deprecated
 
 --TO DO/ISSUES-----------------------------
+--new mechanic ideas: punish for feeding ripostes in 1vx? ur dmg doubles if u parry twice, thrice etc.
+--Player_Anim performance fix, use returns for boneanglemanip instead, maybe use different hook?
 --FIX CL INIT!!! maybe its the include issue.......
 --slighten the tracer amount, make it attached to FrameTime()?
 --flipside anims!!!?! HOW!?!
