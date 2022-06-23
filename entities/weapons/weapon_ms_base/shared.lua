@@ -27,7 +27,7 @@ SWEP.TurnCap = 150
 SWEP.AngleStrike = 235
 SWEP.AngleStrikeOffset = 45
 SWEP.Cleave = true
-SWEP.GlanceAngles = 8
+SWEP.GlanceAngles = -1 --8 -- -1 = disable "glance"
 SWEP.StaminaDrain = 9
 SWEP.FeintDrain = 7
 SWEP.Model = "models/aoc_weapon/w_sword_01.mdl"
@@ -72,6 +72,7 @@ SWEP.m_soundRelease = {"vo/npc/male01/pain04","vo/npc/male01/pain03"} -- might g
 --clamp ALL curtime() anims
 --rework movement (chase mechanic)
 --research animation system
+--move most of the internal vars into player
 --lua_run_cl hook.Add("Tick","a",function() print(LocalPlayer():GetActiveWeapon().m_iState) end)
 --lua_run hook.Add("Tick","a",function() print(Player(N):GetActiveWeapon().m_iState) end)
 ------------------------------------

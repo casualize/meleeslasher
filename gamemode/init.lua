@@ -1,8 +1,13 @@
-include("shared.lua")
-AddCSLuaFile("shared.lua")
-
 AddCSLuaFile("cl_init.lua")
+AddCSLuaFile("shared.lua")
+AddCSLuaFile("sh_globals.lua")
+AddCSLuaFile("player_movement/shared.lua")
+AddCSLuaFile("player_movement/cl_init.lua")
+AddCSLuaFile("vgui/progressbars.lua")
 
+include("shared.lua")
+include("sh_globals.lua")
+include("player_movement/shared.lua")
 include("zsbots/init.lua")
 
 function GM:StaminaUpdate(ent,i,punish)

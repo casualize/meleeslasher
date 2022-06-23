@@ -1,9 +1,8 @@
 include("shared.lua")
-
-include("vgui/progressbars.lua")
-
+include("sh_globals.lua")
+include("player_movement/shared.lua")
 include("player_movement/cl_init.lua")
-include("cl_deathnotice.lua")
+include("vgui/progressbars.lua")
 
 	ATTACK_BIND = {
 		[ANIM_STRIKE]="+attack",

@@ -257,7 +257,7 @@ function SWEP:AttackFinish(sv_tracers,tracerst,traceren,tracertag)
 	self:SetHoldType(self.IdleAnim)
 	
 	if DRAW_SV_TRACERS:GetBool() and sv_tracers then
-		self:SV_TRACER_DRAW(tracerst,traceren,3,tracertag)
+		SV_TRACER_DRAW(tracerst,traceren,3,tracertag)
 	end
 end
 

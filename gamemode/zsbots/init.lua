@@ -156,7 +156,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 						viewang = (destination - mypos):Angle():__add(pl.m_aAttack)
 						if pl.m_flDebugNext + 0.1 <= CurTime() then
 							pl.m_flDebugNext = CurTime()
-							pl.m_aAttack = Angle(math.random(-90,90),math.random(-90,90),0)
+							pl.m_aAttack = Angle(math.random(-45,45),math.random(-45,45),0)
 						end
 						if pl.m_flNextFeint <= CurTime() then
 							pl.m_flNextFeint = CurTime() + math.Rand(0.5,4)
@@ -268,7 +268,7 @@ function ZSBOTS.Think()
 		bot.PathableTargets = {}
 
 		for __, pl in ipairs(player.GetAll()) do
-			if pl != bot and pl:Alive() and pl:GetObserverMode() == OBS_MODE_NONE then
+			if pl != bot and pl:Alive() and pl:IsBot() and pl:GetObserverMode() == OBS_MODE_NONE then
 				table.insert(bot.PathableTargets, pl)
 			elseif pl:IsBot() and not pl:Alive() then
 				gamemode.Call("PlayerDeathThink", pl)
