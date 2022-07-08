@@ -1,10 +1,10 @@
 INC_SERVER()
 
-function SWEP:m_fWindup(a_state,riposte,flip) -- m_fWindup, because the name conflicts self.Windup, a float value...
+function SWEP:m_fWindup(a_state, riposte, flip) -- m_fWindup, because the name conflicts self.Windup, a float value...
 	self.m_iQueuedAnim = a_state
 	self.m_bQueuedFlip = flip
 
-	if (self.m_iState == STATE_IDLE && CurTime() >= self.m_flPrevRecovery && CurTime() >= self.m_flPrevParry && CurTime() >= self.m_flPrevFlinch) || riposte then
+	if (self.m_iState == STATE_IDLE and CurTime() >= self.m_flPrevRecovery and CurTime() >= self.m_flPrevParry and CurTime() >= self.m_flPrevFlinch) or riposte then
 		local flWindupFinal = self.Windup
 		local iFlipFinal = 1
 		local o = self:GetOwner()
@@ -100,7 +100,7 @@ function SWEP:Attack(riposte,flip)
 	end
 	for iAng = 0,iAngleFinal do
 		timer.Simple(self.Release * iAng, function()
-			if o:IsValid() && self.m_iState == STATE_ATTACK then
+			if o:IsValid() and self.m_iState == STATE_ATTACK then
 				local ea = o:EyeAngles()
 				local ep = o:EyePos()
 				--local forward = Angle(Angle(-ea.p*math.cos(iAng * (math.pi/180)),ea.y,0)-Angle(0,self.AngleStrikeOffset,0)+Angle(0,iAng,0)):Forward()
@@ -129,10 +129,10 @@ function SWEP:Attack(riposte,flip)
 					o:EmitSound("physics/concrete/concrete_impact_bullet"..math.random(4)..".wav",75,100,1)
 					return
 				end
-				if t.Entity != NULL && t.Entity != o then
-					if t.Entity:GetClass() == "player" && t.Entity:GetActiveWeapon() then
+				if t.Entity ~= NULL and t.Entity ~= o then
+					if t.Entity:GetClass() == "player" and t.Entity:GetActiveWeapon() then
 						if t.Entity:GetActiveWeapon().m_iState == STATE_PARRY then -- PARRY
-							self:Riposte(t.Entity) -- RIPOSTE && PARRY
+							self:Riposte(t.Entity) -- RIPOSTE and PARRY
 							self:AttackFinish(true,st,en,self.slashtag)
 							GAMEMODE:StaminaUpdate(o,nil,true)
 							self:SetHoldType(self.IdleAnim)
@@ -168,7 +168,7 @@ function SWEP:Attack(riposte,flip)
 							end
 						end
 							
-					elseif t.Entity:GetClass() == ("prop_physics" || "prop_physics_multiplayer" || "func_physbox") && t.Entity:GetPhysicsObject() then
+					elseif t.Entity:GetClass() == ("prop_physics" or "prop_physics_multiplayer" or "func_physbox") and t.Entity:GetPhysicsObject() then
 						t.Entity:GetPhysicsObject():SetVelocity(t.Entity:GetVelocity() + (t.Entity:GetPos()-t.HitPos)*1000)
 						t.Entity:EmitSound("physics/metal/metal_barrel_impact_hard"..math.random(3)..".wav",75,120,1)
 						self:DamageSimple(iAng,t.Entity,1)
@@ -178,7 +178,7 @@ function SWEP:Attack(riposte,flip)
 					end
 				end
 				if t.Entity == NULL then
-					if self.m_iAnim != ANIM_THRUST then
+					if self.m_iAnim ~= ANIM_THRUST then
 						if iAng > self.GlanceAngles then
 							SV_TRACER_DRAW(st,en,1,self.slashtag)
 							else
@@ -203,7 +203,7 @@ function SWEP:StateUpdate(p,s,a,r,f)
 	local w = p:GetActiveWeapon()
 	w.m_flPrevState = CurTime()
 	w.m_iState = s
-	if a != (ANIM_SKIP || ANIM_NONE) then
+	if a ~= (ANIM_SKIP or ANIM_NONE) then
 		w.m_iAnim = a
 	end
 	if DEBUG_STATES:GetBool() then
@@ -216,24 +216,24 @@ function SWEP:StateUpdate(p,s,a,r,f)
 	end
 	if s == STATE_RECOVERY then
 		timer.Simple(w.Windup, function()
-			if p:IsValid() && !w.m_bRiposting && w.m_iState == STATE_RECOVERY then
+			if p:IsValid() and !w.m_bRiposting and w.m_iState == STATE_RECOVERY then
 				self:StateUpdate(p,STATE_IDLE,ANIM_NONE)
 			end
 		end)
 	end
 
 	--w:SetDTInt(WEP_STATE,s)
-	--w:SetDTBool(0,r || false)
-	--if a != nil && a != ANIM_SKIP then
+	--w:SetDTBool(0,r or false)
+	--if a ~= nil and a ~= ANIM_SKIP then
 		--w:SetDTInt(WEP_ANIM,a)
 	--end
 	
 	net.Start("ms_state_update")
 		net.WriteUInt(p:UserID(),16)
 		net.WriteUInt(s,3)
-		net.WriteUInt(a || ANIM_SKIP,3)
-		net.WriteBool(r || false) -- bitset maybe?
-		net.WriteBool(f || false)
+		net.WriteUInt(a or ANIM_SKIP,3)
+		net.WriteBool(r or false) -- bitset maybe?
+		net.WriteBool(f or false)
 	net.Broadcast()
 end
 
@@ -270,7 +270,7 @@ function SWEP:Flinch(p)
 	timer.Stop("ms_attack_"..w:EntIndex())
 	
 	p:EmitSound("physics/flesh/flesh_strider_impact_bullet"..math.random(3)..".wav",75,120,1)
-	if w.m_iState != STATE_IDLE then
+	if w.m_iState ~= STATE_IDLE then
 		self:StateUpdate(p,STATE_RECOVERY)
 		else
 		self:StateUpdate(p,STATE_RECOVERY,ANIM_NONE)
@@ -288,7 +288,7 @@ function SWEP:Riposte(p) -- successful parry
 	w.m_flPrevFlinch = 0.0
 	
 	timer.Create("ms_riposte_"..w:EntIndex(),1/6,1,function()
-		if w.m_iQueuedAnim != ANIM_NONE then
+		if w.m_iQueuedAnim ~= ANIM_NONE then
 			w.m_bRiposting = true
 			w:m_fWindup(w.m_iQueuedAnim,true,w.m_bQueuedFlip)
 		end
@@ -297,7 +297,7 @@ function SWEP:Riposte(p) -- successful parry
 end
 
 function SWEP:Parry()
-	if CurTime() >= self.m_flPrevParry && self.m_iState <= STATE_RECOVERY then
+	if CurTime() >= self.m_flPrevParry and self.m_iState <= STATE_RECOVERY then
 	
 		local o = self:GetOwner()
 		self.m_flPrevParry = CurTime() + 1 + 1/3
@@ -306,7 +306,7 @@ function SWEP:Parry()
 		self.m_bQueuedFlip = false
 		self.m_iQueuedAnim = ANIM_NONE
 		
-		if self.m_iState == STATE_IDLE || STATE_WINDUP then
+		if self.m_iState == STATE_IDLE or STATE_WINDUP then
 			
 			o:EmitSound("physics/flesh/flesh_impact_hard3.wav",75,100,1)
 			self:SetHoldType(self.ParryAnim)
@@ -322,7 +322,7 @@ function SWEP:Parry()
 			self:EyeAnglesUpdate()
 			
 			timer.Simple(1/3, function()
-				if self.m_iState == STATE_WINDUP && self.m_flPrevRecovery == 0.0 then return end
+				if self.m_iState == STATE_WINDUP and self.m_flPrevRecovery == 0.0 then return end
 				if !self.m_bRiposting then
 					self:StateUpdate(o,STATE_RECOVERY,ANIM_NONE)
 				end
@@ -336,7 +336,7 @@ function SWEP:Parry()
 end
 
 function SWEP:Feint()
-	if self.m_iState == STATE_WINDUP && !self.m_bRiposting && self:GetOwner().m_iStamina != 0 then
+	if self.m_iState == STATE_WINDUP and !self.m_bRiposting and self:GetOwner().m_iStamina ~= 0 then
 		local o = self:GetOwner()
 		self:StateUpdate(o,STATE_IDLE)
 		timer.Stop("ms_attack_"..self:EntIndex())

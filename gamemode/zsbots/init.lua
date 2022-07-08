@@ -27,6 +27,7 @@ local function SortObstructions(posa, posb)
 	return posa:DistToSqr(eyepos) < posb:DistToSqr(eyepos)
 end
 ]]
+
 local target
 local obstrace = {mask = MASK_PLAYERSOLID, filter = function(ent) return ent ~= target and not ent:IsPlayer() end}
 function ZSBOTS.StartCommand(pl, cmd)
@@ -145,11 +146,11 @@ function ZSBOTS.StartCommand(pl, cmd)
 		local meleerange = 128*128
 		if targetdist then
 			if targetdist <= meleerange then
-				if (targetstate == STATE_IDLE || targetstate == STATE_RECOVERY)  then
+				if (targetstate == STATE_IDLE or targetstate == STATE_RECOVERY)  then
 					if wep.m_iState == STATE_IDLE then
 						if pl.m_flPrevFeint + 0.4 <= CurTime() then
 							--pl.m_aAttack = Angle(math.random(-45,45),math.random(-90,90),0)
-							wep:m_fWindup(math.random(2,5))
+							wep:m_fWindup(math.random(2,5), false, math.random() >= 0.5)
 						end
 					end
 					if wep.m_iState == STATE_WINDUP then
@@ -175,11 +176,11 @@ function ZSBOTS.StartCommand(pl, cmd)
 					cmd:SetForwardMove(-10000)
 				end
 				if wep.m_iState == STATE_PARRY then
-					wep:m_fWindup(math.random(2,5))
+					wep:m_fWindup(math.random(2,5), false, math.random() >= 0.5)
 				elseif wep.m_iState == STATE_ATTACK then
 					buttons = bit.bor(buttons, IN_FORWARD)
 					cmd:SetForwardMove(10000)
-					if wep.m_iAnim != ANIM_THRUST && wep.m_iAnim != ANIM_STRIKE then
+					if wep.m_iAnim ~= ANIM_THRUST and wep.m_iAnim ~= ANIM_STRIKE then
 						viewang = (destination - mypos):Angle():__add(pl.m_aAttack)
 					elseif wep.m_iAnim == ANIM_STRIKE then
 						viewang = (destination - mypos):Angle():__add(Angle(0,pl.m_aAttack[2],0))
@@ -268,7 +269,7 @@ function ZSBOTS.Think()
 		bot.PathableTargets = {}
 
 		for __, pl in ipairs(player.GetAll()) do
-			if pl != bot and pl:Alive() and pl:IsBot() and pl:GetObserverMode() == OBS_MODE_NONE then
+			if pl ~= bot and pl:Alive() and pl:GetObserverMode() == OBS_MODE_NONE then
 				table.insert(bot.PathableTargets, pl)
 			elseif pl:IsBot() and not pl:Alive() then
 				gamemode.Call("PlayerDeathThink", pl)
@@ -371,7 +372,7 @@ local randomtaunts = {
 	":dsp drot=-90 rotrate=60::gunl drot=25 rotrate=130::ahhahahaha c=255,0,0::youdied:"
 }
 function ZSBOTS.DoPlayerDeath(p, att, info)
-	if att.IsZSBot && !p:IsBot() then
+	if att.IsZSBot and !p:IsBot() then
 		att:Say(table.Random(randomtaunts))
 	end
 end

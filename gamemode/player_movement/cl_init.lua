@@ -36,7 +36,7 @@ local TimeDuckHeld = 0
 hook.Add("CreateMove","DuckJumpAlter", function(cmd)
 	local MySelf = LocalPlayer()
 	
-	if MySelf.m_flJumpStartTime + 1 >= CurTime() || MySelf:GetActiveWeapon().m_iState == STATE_ATTACK then
+	if MySelf.m_flJumpStartTime + 1 >= CurTime() or MySelf:GetActiveWeapon().m_iState == STATE_ATTACK then
 		PressJump(cmd, false)
 	end
 

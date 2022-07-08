@@ -1,22 +1,24 @@
 AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("shared.lua")
 AddCSLuaFile("sh_globals.lua")
+AddCSLuaFile("sh_animations.lua")
 AddCSLuaFile("player_movement/shared.lua")
 AddCSLuaFile("player_movement/cl_init.lua")
 AddCSLuaFile("vgui/progressbars.lua")
 
 include("shared.lua")
 include("sh_globals.lua")
+include("sh_animations.lua")
 include("player_movement/shared.lua")
 include("zsbots/init.lua")
 
 function GM:StaminaUpdate(ent,i,punish)
-	if IsValid(ent) && ent:IsPlayer() then
+	if IsValid(ent) and ent:IsPlayer() then
 		if punish then
 			ent.m_flPrevStamina = CurTime() + 4
 		end
 		
-		if i != nil then
+		if i ~= nil then
 			ent.m_iStamina = math.Clamp(i,0,ent.m_iMaxStamina)
 		
 			net.Start("ms_stamina_update")
@@ -82,14 +84,15 @@ function GM:PlayerSpawn(p)
 	p.m_soundLowStamina = CreateSound(p,"player/breathe1.wav")
 end
 
+--[[
 function GM:CalcMainActivity(ply,velocity) -- OVERRIDE, REMOVED JUMPING AND LANDING
 	ply.CalcIdeal = ACT_MP_STAND_IDLE
 	ply.CalcSeqOverride = -1
 
-	if !( self:HandlePlayerNoClipping( ply, velocity ) ||
-		self:HandlePlayerDriving( ply ) ||
-		self:HandlePlayerVaulting( ply, velocity ) ||
-		self:HandlePlayerSwimming( ply, velocity ) ||
+	if !( self:HandlePlayerNoClipping( ply, velocity ) or
+		self:HandlePlayerDriving( ply ) or
+		self:HandlePlayerVaulting( ply, velocity ) or
+		self:HandlePlayerSwimming( ply, velocity ) or
 		self:HandlePlayerDucking( ply, velocity ) ) then
 		
 		ply.CalcIdeal = ACT_MP_RUN
@@ -97,17 +100,17 @@ function GM:CalcMainActivity(ply,velocity) -- OVERRIDE, REMOVED JUMPING AND LAND
 	end
 
 	ply.m_bWasOnGround = ply:IsOnGround()
-	ply.m_bWasNoclipping = ( ply:GetMoveType() == MOVETYPE_NOCLIP && !ply:InVehicle() )
+	ply.m_bWasNoclipping = ( ply:GetMoveType() == MOVETYPE_NOCLIP and !ply:InVehicle() )
 
 	return ply.CalcIdeal, ply.CalcSeqOverride
-end
+end]]
 
 function GM:Think()
 	for _,p in ipairs(player.GetAll()) do
-		if CurTime() >= p.m_flPrevStamina && p.m_iStamina < p.m_iMaxStamina then
+		if CurTime() >= p.m_flPrevStamina and p.m_iStamina < p.m_iMaxStamina then
 			self:StaminaUpdate(p,p.m_iStamina + 2,false) -- terrible for net.
 		end
-		if CurTime() >= p.m_flPrevStamina + 4 && p:Health() < p:GetMaxHealth() then
+		if CurTime() >= p.m_flPrevStamina + 4 and p:Health() < p:GetMaxHealth() then
 			p:SetHealth(p:Health() + 1)
 		end
 		if p.m_iStamina > 20 then
@@ -125,14 +128,14 @@ function GM:Think()
 	end
 end
 
-net.Receive("ms_bind_attack", function(_,p)
+net.Receive("ms_bind_attack", function(_, p)
 	local a_state = net.ReadUInt(3)
 	local flip = net.ReadBool()
 	if IsValid(p:GetActiveWeapon()) then
-		p:GetActiveWeapon():m_fWindup(a_state,false,flip)
+		p:GetActiveWeapon():m_fWindup(a_state, false, flip)
 	end
 end)
-net.Receive("ms_bind_other", function(_,p)
+net.Receive("ms_bind_other", function(_, p)
 	local bind = net.ReadUInt(3)
 	if IsValid(p:GetActiveWeapon()) then
 		if bind == 1 then
@@ -141,7 +144,7 @@ net.Receive("ms_bind_other", function(_,p)
 	end
 end)
 
-function GM:EntityTakeDamage(ent,info)
+function GM:EntityTakeDamage(ent, info)
 	if ent:GetClass() == "player" then
 		if info:GetDamage() >= 10 then
 			ent:EmitSound("vo/npc/male01/pain0"..math.random(8,9)..".wav",75,100,1)
@@ -155,7 +158,7 @@ end
 function GM:DoPlayerDeath(p, att, info)
 	p:CreateRagdoll()
 	p:AddDeaths(1)
-	if att:IsValid() && att != p then
+	if att:IsValid() and att ~= p then
 		att:AddFrags(1)
 	end
 end

@@ -9,25 +9,27 @@ SWEP.Secondary.DefaultClip = -1
 SWEP.Secondary.Ammo = "none"
 SWEP.Secondary.Automatic = false
 
-SWEP.ViewModel = ""--"models/aoc_weapon/v_longsword.mdl"
+SWEP.ViewModel = "" -- "models/aoc_weapon/v_longsword.mdl"
 SWEP.WorldModel = "models/aoc_weapon/w_sword_01.mdl"
 SWEP.ShowWorldModel = false
+
+SWEP.ViewModelFlip = true
 
 --CUSTOM SWEP VARIABLES--
 SWEP.Name = "base"
 SWEP.ThrustDamage = 10
-SWEP.SwingDamage = 25--35
+SWEP.SwingDamage = 25 -- 35
 SWEP.Range = 36
-SWEP.Lunge = 40--(u/s)
+SWEP.Lunge = 40 -- (u/s)
 SWEP.Release = 0.002 -- how fast angle degree ticks, swep.release*swep.angle for time taken swinging 
 SWEP.Windup = (2/3)
-SWEP.RiposteMulti = (2/3) -- swep.windup*swep.ripostemulti
+SWEP.RiposteMulti = (2/3) -- Used to multiply windup on riposte
 SWEP.Recovery = (2/3)
 SWEP.TurnCap = 150
 SWEP.AngleStrike = 235
 SWEP.AngleStrikeOffset = 45
 SWEP.Cleave = true
-SWEP.GlanceAngles = -1 --8 -- -1 = disable "glance"
+SWEP.GlanceAngles = -1 --8
 SWEP.StaminaDrain = 9
 SWEP.FeintDrain = 7
 SWEP.Model = "models/aoc_weapon/w_sword_01.mdl"
@@ -57,33 +59,25 @@ SWEP.m_soundRelease = {"vo/npc/male01/pain04","vo/npc/male01/pain03"} -- might g
 --TO DO/ISSUES-----------------------------
 --new mechanic ideas: punish for feeding ripostes in 1vx? ur dmg doubles if u parry twice, thrice etc.
 --Player_Anim performance fix, use returns for boneanglemanip instead, maybe use different hook?
---FIX CL INIT!!! maybe its the include issue.......
 --slighten the tracer amount, make it attached to FrameTime()?
---flipside anims!!!?! HOW!?!
 --isvalid checks
 --more complex bot
---use lerp, math.ease libs
 --microoptimize swings/thinks
---optimize object construction(skip vectors,angle construction etc)
---weird "stun lock" with thrusts, look into cooldowns or the attack itself
---DISCLAIMER: bindings != PrimaryAttack or etc, those are more complicated, should research this
+--optimize object construction(skip vectors, angle construction etc)
+--DISCLAIMER: bindings ~= PrimaryAttack or etc, those are more complicated, should research this
 --net library is NOT predicted = awful gameplay, use setdt instead
 --hands model for FP
---clamp ALL curtime() anims
 --rework movement (chase mechanic)
---research animation system
 --move most of the internal vars into player
 --lua_run_cl hook.Add("Tick","a",function() print(LocalPlayer():GetActiveWeapon().m_iState) end)
 --lua_run hook.Add("Tick","a",function() print(Player(N):GetActiveWeapon().m_iState) end)
 ------------------------------------
-
 function SWEP:Initialize()
 	self:SetHoldType(self.IdleAnim)
 end
 
-
 function SWEP:PrimaryAttack()
-	--if CLIENT then return end -- we put this in here because it gets rid of the annoying clicking sound...
+	--if CLIENT then return end -- Gets rid of the clicking sound
 	--self:m_fWindup(ANIM_STRIKE,false)
 end
 

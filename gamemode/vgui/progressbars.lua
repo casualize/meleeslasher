@@ -70,7 +70,7 @@ function PANEL:Paint()
 	local p = LocalPlayer()
 	
 	if IsValid(p) and p.m_iStamina ~= nil and p.m_iMaxStamina ~= nil then
-		if p.m_eTarget != nil then
+		if p.m_eTarget ~= nil then
 			fHealthProgress:Show()
 			fHealthProgress:SetFraction(p.m_eTarget:Health()/p.m_eTarget:GetMaxHealth())
 			fHealthLabel:SetText(p.m_eTarget:GetName())
