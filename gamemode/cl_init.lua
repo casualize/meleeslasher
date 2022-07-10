@@ -6,13 +6,13 @@ include("player_movement/cl_init.lua")
 include("vgui/progressbars.lua")
 
 	ATTACK_BIND = {
-		[ANIM_STRIKE]="+attack",
-		[ANIM_UPPERCUT]="invnext",
-		[ANIM_UNDERCUT]="+zoom",
-		[ANIM_THRUST]="invprev"
+		[ANIM_STRIKE]= "+attack",
+		[ANIM_UPPERCUT]= "invnext",
+		[ANIM_UNDERCUT]= "+zoom",
+		[ANIM_THRUST]= "invprev"
 	}
 	OTHER_BIND = {
-	"+menu"
+		"+menu"
 	}
 
 	local SV_LINE_DATA = {}
@@ -44,13 +44,13 @@ net.Receive("ms_tracer_server", function()
 	end)
 end)
 
-local function CL_TRACER_DRAW(st,en) --this is tied to the framerate!
+local function CL_TRACER_DRAW(st, en) --this is tied to the framerate!
 	CL_LINE_DATA[#CL_LINE_DATA + 1] = st
 	CL_LINE_DATA[#CL_LINE_DATA + 1] = en
 	
 	timer.Simple(CL_TRACER_LIFETIME:GetFloat(), function()
 		for i = 1, 2 do
-			table.remove(CL_LINE_DATA,1)
+			table.remove(CL_LINE_DATA, 1)
 		end
 	end)
 end
@@ -97,7 +97,7 @@ function AnimInit(p, s, a, f)
 	p.m_aRHand = p:GetManipulateBoneAngles(p.m_iRHand)
 	p.m_aRForearm = p:GetManipulateBoneAngles(p.m_iRForearm)
 	p.m_aRUpperarm = p:GetManipulateBoneAngles(p.m_iRUpperarm)
-	local _ = s == STATE_PARRY and AnimReset(p)
+	do local _ = s == STATE_PARRY and AnimReset(p) end
 
 	-- Known bug, GMod disables inverse kinematics when enablematrix is applied
 	if f then
@@ -320,16 +320,16 @@ hook.Add("PostPlayerDraw", "Player_Anim", function(p)
 		--w.m_bRiposting = w:GetDTBool(0)
 
 		-- Inverts poseparams and texture normals because pmodel gets enablematrix'd with a negative value
-		-- BUG: Sometimes your own pmodel gets drawn twice with wrong poseparams randomly?
+		-- BUG: method SetPoseParameter draws another pmodel?
 		p.RenderOverride = function(self)
 			if w.m_iFlip ~= 1 then
 				render.CullMode(MATERIAL_CULLMODE_CW)
-				local min1, max1 = self:GetPoseParameterRange(self:LookupPoseParameter("aim_yaw"))
-				local min2, max2 = self:GetPoseParameterRange(self:LookupPoseParameter("move_x"))
-				self:SetPoseParameter("aim_yaw", min1+max1 - math.Remap(self:GetPoseParameter("aim_yaw"), 0, 1, min1, max1))
-				self:SetPoseParameter("move_x", min2+max2 - math.Remap(self:GetPoseParameter("move_x"), 0, 1, min2, max2))
+				for _, v in ipairs({"aim_yaw", "move_y"}) do
+					local min, max = self:GetPoseParameterRange(self:LookupPoseParameter(v))
+					self:SetPoseParameter(v, min+max - math.Remap(self:GetPoseParameter(v), 0, 1, min, max))
+				end
 				self:DrawModel()
-				render.CullMode(MATERIAL_CULLMODE_CCW) -- I dont get this statement, but its necessary
+				render.CullMode(MATERIAL_CULLMODE_CCW) -- ?
 			else
 				self:DrawModel()
 			end
@@ -347,19 +347,19 @@ hook.Add("PostPlayerDraw", "Player_Anim", function(p)
 				local multi = w.m_bRiposting and w.RiposteMulti or 1
 				local flAng = math.Clamp(90/((w.Windup*multi)/(CurTime()-w.m_flPrevState)), 0, 90)
 			if w.m_iAnim == ANIM_STRIKE then
-				p:ManipulateBoneAngles(p.m_iRHand,Angle(-flAng, 0, 0))
-				p:ManipulateBoneAngles(p.m_iRForearm,Angle(0, flAng, 0))
-				p:ManipulateBoneAngles(p.m_iRUpperarm,Angle(0, flAng, 0))
+				p:ManipulateBoneAngles(p.m_iRHand, Angle(-flAng, 0, 0))
+				p:ManipulateBoneAngles(p.m_iRForearm, Angle(0, flAng, 0))
+				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(0, flAng, 0))
 			elseif w.m_iAnim == ANIM_UPPERCUT then
-				p:ManipulateBoneAngles(p.m_iRHand,Angle(0, -flAng, flAng))
-				p:ManipulateBoneAngles(p.m_iRForearm,Angle(0, flAng, 0))
-				p:ManipulateBoneAngles(p.m_iRUpperarm,Angle(flAng, 0, 0))
+				p:ManipulateBoneAngles(p.m_iRHand, Angle(0, -flAng, flAng))
+				p:ManipulateBoneAngles(p.m_iRForearm, Angle(0, flAng, 0))
+				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(flAng, 0, 0))
 			elseif w.m_iAnim == ANIM_UNDERCUT then
-				p:ManipulateBoneAngles(p.m_iRHand,Angle(0, -flAng, flAng))
-				p:ManipulateBoneAngles(p.m_iRForearm,Angle(0, flAng, 0))
+				p:ManipulateBoneAngles(p.m_iRHand, Angle(0, -flAng, flAng))
+				p:ManipulateBoneAngles(p.m_iRForearm, Angle(0, flAng, 0))
 			elseif w.m_iAnim == ANIM_THRUST then
-				p:ManipulateBoneAngles(p.m_iRHand,Angle(0, 0, -flAng/2))
-				p:ManipulateBoneAngles(p.m_iRUpperarm,Angle(0, flAng, 0))
+				p:ManipulateBoneAngles(p.m_iRHand, Angle(0, 0, -flAng/2))
+				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(0, flAng, 0))
 			end
 		elseif w.m_iState == STATE_RECOVERY then
 			local flFraction = 1 - math.ease.InCubic(math.Clamp((CurTime()-w.m_flPrevState)/w.Recovery, 0, 1))
@@ -368,25 +368,31 @@ hook.Add("PostPlayerDraw", "Player_Anim", function(p)
 			p:ManipulateBoneAngles(p.m_iRUpperarm, p.m_aRUpperarm:__mul(flFraction))
 		elseif w.m_iState == STATE_ATTACK then
 			local flAng = 0.0
-			if w.m_iAnim == ANIM_STRIKE then -- only attack anims can be here
+			if w.m_iAnim == ANIM_STRIKE then -- Only attack anims can be here
 				flAng = math.Clamp((CurTime()-w.m_flPrevState)/w.Release, 0, w.AngleStrike)
-				p:ManipulateBoneAngles(p.m_iRUpperarm,Angle(60*math.sin(math.rad(flAng*(4/3))), 90-flAng*(4/3)+30), flAng*0.4)
+				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(60*math.sin(math.rad(flAng*(4/3))), 90-flAng*(4/3)+30), flAng*0.4)
 			elseif w.m_iAnim == ANIM_UPPERCUT then
 				flAng = math.Clamp((CurTime()-w.m_flPrevState)/w.Release, 0, w.AngleStrike)
-				p:ManipulateBoneAngles(p.m_iRUpperarm,Angle(90+flAng, 90-30*flAng/w.AngleStrike, 120))
-				--0,-90,90; 0,0,0
-				--0,90,0; 0,0,0
-				--90,0,0; 135;90;120
+				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(90+flAng, 90-30*flAng/w.AngleStrike, 120))
+				--[[
+					0,-90,90; 0,0,0
+					0,90,0; 0,0,0
+					90,0,0; 135;90;120
+				]]
 			elseif w.m_iAnim == ANIM_UNDERCUT then
 				flAng = math.Clamp((CurTime()-w.m_flPrevState)/w.Release, 0, w.AngleStrike)
-				p:ManipulateBoneAngles(p.m_iRUpperarm,Angle(-30*flAng/w.AngleStrike, -flAng, 0))
-				--0,-90,90; 0,0,0
-				--0,90,0; 0,0,0
-				--0,0,0; -15,-90,0; -30;-135;0; -30;-235;0
+				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(-30*flAng/w.AngleStrike, -flAng, 0))
+				--[[
+					0,-90,90; 0,0,0
+					0,90,0; 0,0,0
+					0,0,0; -15,-90,0; -30;-135;0; -30;-235;0
+				]]
 			elseif w.m_iAnim == ANIM_THRUST then
-				--0,0,-90WINDUPFINAL; -100,-15,0THRUSTFINAL
-				--0,0,0WINDUPFINAL; 0,90,0THRUSTFINAL
-				--0,90,0WINDUPFINAL; 0,-90,0THRUSTFINAL
+				--[[
+					0,0,-90; -100,-15,0
+					0,0,0; 0,90,0
+					0,90,0; 0,-90,0
+				]]
 				flAng = CurTime()-w.m_flPrevState
 				local pace_90 = math.Clamp(flAng/w.Release, 0, 90) -- a thrust will always have only 90 iterations(?)
 				p:ManipulateBoneAngles(p.m_iRHand,Angle(-100*pace_90/90, -15*pace_90/90, -90+pace_90))
@@ -425,14 +431,14 @@ function GM:PostDrawOpaqueRenderables()
 	end
 end
 
-		/*
+		--[[
 		-- Immersive first person for Calcview hook (its bad)
 			LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Head1"),Vector(0,0,0))
 			LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Neck1"),Vector(0,0,0))
 			LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Spine4"),Vector(0,0,0))
 			CAM_DATA.origin = LocalPlayer():GetBonePosition(6)+ LocalPlayer():EyeAngles():Up()*4 + LocalPlayer():EyeAngles():Forward()*-8--nil
 			LocalPlayer().CSENT:SetColor(Color(255,255,255,0))
-		*/
+		]]
 
 function GM:CalcView(p, pos)
 	if LocalPlayer().CSENT then

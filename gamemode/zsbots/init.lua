@@ -1,6 +1,4 @@
 -- unobstructed path has a flaw where people in the air are considered a straight path (on ground check?)
--- have an icon that indicates they're a bot?
--- give them a better class?
 
 ZSBOTS = {}
 
@@ -93,14 +91,17 @@ function ZSBOTS.StartCommand(pl, cmd)
 					cmd:SetForwardMove(-10000)
 
 					viewang = pl:EyeAngles()
+					viewang.pitch = eyepos.z < targetpos.z and -60 or viewang.pitch
+					--[[
 					if eyepos.z < targetpos.z then
 						-- They're on top of us.
 						viewang.pitch = -60
 					else
 						-- We're on top of them.
-						--viewang.pitch = 89 -- false assumption(?)
-						--buttons = bit.bor(buttons, IN_DUCK)
+						viewang.pitch = 89 -- false assumption(?)
+						buttons = bit.bor(buttons, IN_DUCK)
 					end
+					]]
 				else
 					-- No but we're very close, so start doing anti-juke measures.
 					buttons = bit.bor(buttons, IN_FORWARD)
@@ -378,42 +379,35 @@ function ZSBOTS.DoPlayerDeath(p, att, info)
 end
 
 function ZSBOTS:AddOrRemoveHooks()
+	local ename = {"StartCommand", "Think", "PlayerTick", "DoPlayerDeath"}
+	local efunc = {self.StartCommand, self.Think, self.PlayerTick, self.DoPlayerDeath} -- Must be in order
 	if #Bots == 0 then
-		hook.Remove("StartCommand", "zsbots")
-		hook.Remove("Think", "zsbots")
-		hook.Remove("PlayerTick", "zsbots")
-		hook.Remove("DoPlayerDeath", "zsbots")
+		for _, v in ipairs(ename) do
+			hook.Remove(v, "zsbots")
+		end
 	else
-		hook.Add("StartCommand", "zsbots", self.StartCommand)
-		hook.Add("Think", "zsbots", self.Think)
-		hook.Add("PlayerTick", "zsbots", self.PlayerTick)
-		hook.Add("DoPlayerDeath", "zsbots", self.DoPlayerDeath)
+		for k, v in ipairs(ename) do
+			hook.Add(v, "zsbots", efunc[k])
+		end
 	end
 end
 
 hook.Add("PlayerDisconnect", "zsbots", function(pl)
 	if pl:IsBot() then
 		table.RemoveByValue(Bots, pl)
-
 		ZSBOTS:AddOrRemoveHooks()
 	end
 end)
 
 local meta = FindMetaTable("Player")
-if not meta then return end
-
 function meta:SetCurrentEnemy(enemy)
-	if not enemy or not enemy:IsValid() then enemy = NULL end
+	enemy = (not enemy or not enemy:IsValid()) and NULL or enemy
 
 	if self.CurrentEnemy ~= enemy then
 		local old_enemy = self.CurrentEnemy
 		self.CurrentEnemy = enemy
 		self:EnemyChanged(old_enemy)
 	end
-end
-
-function meta:ClearCurrentEnemy()
-	self:SetCurrentEnemy(NULL)
 end
 
 function meta:SetMovementTarget(vec)
@@ -424,8 +418,7 @@ function meta:ClearMovementTarget()
 	self:SetMovementTarget(nil)
 end
 
-local loco
-local compute_step_height
+local loco, compute_step_height
 local function Compute(area, fromArea, ladder, elevator, length)
 	-- first area in path, no cost
 	if not fromArea or not fromArea:IsValid() then
@@ -439,8 +432,6 @@ local function Compute(area, fromArea, ladder, elevator, length)
 
 	if area:HasAttributes(NAV_MESH_INVALID) then return -1 end
 	if area:HasAttributes(NAV_MESH_AVOID) then return -1 end
-	--[[if area:HasAttributes(NAV_MESH_NO_MERGE) then return -1 end
-	if area:HasAttributes(NAV_MESH_NAV_BLOCKER) then return -1 end]]
 
 	if not area:IsVisible(fromArea:GetClosestPointOnArea(area:GetCenter())) then
 		return -1
@@ -487,12 +478,12 @@ local pathlength
 function meta:UpdateBotPath()
 	-- Nothing to kill
 	if #self.PathableTargets == 0 then
-		self:ClearCurrentEnemy()
+		self:SetCurrentEnemy(NULL)
 		self:ClearMovementTarget()
 		return
 	end
 
-	local length = 10000
+	local length = 10000 -- Increase this for really big maps
 	local path, tpath, new_enemy
 
 	loco = self.NB.loco
@@ -505,14 +496,13 @@ function meta:UpdateBotPath()
 	-- This is presorted without path distance in the tick function so this won't always be accurate but it needs to be cheap.
 	for i, ent in pairs(self.PathableTargets) do
 		tpath = Path("Follow")
-		--tpath:Invalidate()
 		tpath:SetMinLookAheadDistance(300)
 		tpath:SetGoalTolerance(20)
 		tpath:Compute(self.NB, ent:GetPos(), Compute)
 
 		pathlength = tpath:GetLength()
 
-		if tpath:IsValid() and pathlength < length --[[and tpath:LastSegment().pos:DistToSqr(ent:GetPos()) <= 4096]] then
+		if tpath:IsValid() and pathlength < length then
 			path = tpath
 			length = pathlength
 			new_enemy = ent
@@ -527,7 +517,7 @@ function meta:UpdateBotPath()
 
 	if not new_enemy then return end
 
-	--path:Draw()
+	-- path:Draw() -- DEBUG
 
 	-- Find the first segment not immediately near us
 	local goal = path:GetCurrentGoal()
@@ -551,32 +541,19 @@ function meta:EnemyChanged(old_enemy)
 	end
 end
 
-function meta:OnTargetLost()
-end
-
-function meta:HasBeenTrackingTargetFor(time)
-	return self.CurrentEnemy:IsValid() and CurTime() >= self.TargetAcquireTime + time
-end
-
-concommand.Add("createnavmesh", function(sender, command, arguments)
+concommand.Add("createnavmesh", function(sender)
 	if sender:IsSuperAdmin() and not game.IsDedicated() then
 		if sender:GetObserverMode() == OBS_MODE_NONE and sender:IsOnGround() and sender:OnGround() then
-			for _, ent in pairs(ents.FindByClass("func_door*")) do
-				ent:Fire("open", "", 0)
-				ent:Fire("kill", "", 1)
+			for _, class in ipairs({"func_door*", "prop_door*"}) do
+				for _, ent in pairs(ents.FindByClass(class)) do
+					ent:Fire("open", "", 0)
+					ent:Fire("kill", "", 1)
+				end
 			end
-			for _, ent in pairs(ents.FindByClass("prop_door*")) do
-				ent:Fire("open", "", 0)
-				ent:Fire("kill", "", 1)
-			end
-			for _, ent in pairs(ents.FindByClass("prop_physics*")) do
-				ent:Remove()
-			end
-			for _, ent in pairs(ents.FindByClass("func_breakable")) do
-				ent:Remove()
-			end
-			for _, ent in pairs(ents.FindByClass("func_physbox")) do
-				ent:Remove()
+			for _, class in ipairs({"prop_physics*", "func_breakable", "func_physbox"}) do
+				for _, ent in pairs(ents.FindByClass(class)) do
+					ent:Remove()
+				end
 			end
 			local ent = ents.Create("info_player_start")
 			if ent:IsValid() then
@@ -598,24 +575,7 @@ ENT.Base = "base_nextbot"
 ENT.IsZSBot = true
 
 function ENT:Initialize()
-	--self:AddEFlags(EFL_SERVER_ONLY + EFL_FORCE_CHECK_TRANSMIT)
-
-	--self.BaseClass.Initialize(self)
-
-	--self:DrawShadow(false)
-	--self:SetModel("models/player/zombie_classic.mdl")
-	-----self:SetCollisionBounds(Vector(-16, -16, 0), Vector(16, 16, 72))
-	----self:SetSolidMask(MASK_PLAYERSOLID)
-	----self:SetMoveType(MOVETYPE_NONE)
 	self:SetSolid(SOLID_NONE)
-	--self:SetCustomCollisionCheck(true)
-	--self:CollisionRulesChanged() --self:SetCollisionGroup(COLLISION_GROUP_WORLD)
-
-	--self.loco:SetStepHeight(18)
-	--self.loco:SetDeathDropHeight(2000)
-	--self.loco:SetJumpHeight(64)
-	--self.loco:SetAcceleration(900)
-	--self.loco:SetDeceleration(900)
 end
 
 function ENT:OnKilled(dmginfo)

@@ -1,7 +1,7 @@
-"admortem"
+"meleeslasher"
 {
 	"base"				"base"
-	"title"				"ad mortem"
+	"title"				"meleeslasher"
 	"maps"				"^ms_"
 	"menusystem"			"1"
 

@@ -25,7 +25,7 @@ SWEP.Release = 0.002 -- how fast angle degree ticks, swep.release*swep.angle for
 SWEP.Windup = (2/3)
 SWEP.RiposteMulti = (2/3) -- Used to multiply windup on riposte
 SWEP.Recovery = (2/3)
-SWEP.TurnCap = 150
+SWEP.TurnCap = 200 -- 150
 SWEP.AngleStrike = 235
 SWEP.AngleStrikeOffset = 45
 SWEP.Cleave = true
@@ -57,6 +57,9 @@ SWEP.slashtag = 0 -- might get deprecated
 SWEP.m_soundRelease = {"vo/npc/male01/pain04","vo/npc/male01/pain03"} -- might get deprecated
 
 --TO DO/ISSUES-----------------------------
+-- Bandaid fix to IK (for enablematrix issue): manipulate left hand's bones to the right one when flipped attack
+-- If u feint late on strike windup then when switching to thrust it will mess up 1 of the bones for it
+-- Being outside the map will make your ActiveWeapon nil
 --new mechanic ideas: punish for feeding ripostes in 1vx? ur dmg doubles if u parry twice, thrice etc.
 --Player_Anim performance fix, use returns for boneanglemanip instead, maybe use different hook?
 --slighten the tracer amount, make it attached to FrameTime()?

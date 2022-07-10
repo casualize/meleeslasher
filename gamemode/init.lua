@@ -84,31 +84,10 @@ function GM:PlayerSpawn(p)
 	p.m_soundLowStamina = CreateSound(p,"player/breathe1.wav")
 end
 
---[[
-function GM:CalcMainActivity(ply,velocity) -- OVERRIDE, REMOVED JUMPING AND LANDING
-	ply.CalcIdeal = ACT_MP_STAND_IDLE
-	ply.CalcSeqOverride = -1
-
-	if !( self:HandlePlayerNoClipping( ply, velocity ) or
-		self:HandlePlayerDriving( ply ) or
-		self:HandlePlayerVaulting( ply, velocity ) or
-		self:HandlePlayerSwimming( ply, velocity ) or
-		self:HandlePlayerDucking( ply, velocity ) ) then
-		
-		ply.CalcIdeal = ACT_MP_RUN
-
-	end
-
-	ply.m_bWasOnGround = ply:IsOnGround()
-	ply.m_bWasNoclipping = ( ply:GetMoveType() == MOVETYPE_NOCLIP and !ply:InVehicle() )
-
-	return ply.CalcIdeal, ply.CalcSeqOverride
-end]]
-
 function GM:Think()
 	for _,p in ipairs(player.GetAll()) do
 		if CurTime() >= p.m_flPrevStamina and p.m_iStamina < p.m_iMaxStamina then
-			self:StaminaUpdate(p,p.m_iStamina + 2,false) -- terrible for net.
+			self:StaminaUpdate(p, p.m_iStamina + 2, false) -- terrible for net.
 		end
 		if CurTime() >= p.m_flPrevStamina + 4 and p:Health() < p:GetMaxHealth() then
 			p:SetHealth(p:Health() + 1)
