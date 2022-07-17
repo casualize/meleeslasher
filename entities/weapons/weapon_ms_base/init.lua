@@ -13,12 +13,8 @@ function SWEP:m_fWindup(a_state, riposte, flip) -- m_fWindup, because the name c
 			flWindupFinal = self.Windup * self.RiposteMulti
 			o:EmitSound("physics/metal/metal_solid_impact_bullet4.wav",75,math.random(50,100),1)
 		end
-		if flip then
-			iFlipFinal = -1
-		else
-			iFlipFinal = 1
-		end
-		self:StateUpdate(o,STATE_WINDUP,a_state,riposte,flip)
+		iFlipFinal = flip and -1 or 1
+		self:StateUpdate(o, STATE_WINDUP, a_state, riposte, flip)
 		GAMEMODE:StaminaUpdate(o,nil,true)
 		
 		o:EmitSound("npc/vort/claw_swing"..math.random(2)..".wav",75,125,1)
@@ -77,16 +73,12 @@ function SWEP:DamageSimple(iAng,ent,multi)
 	ent:TakeDamageInfo(d)
 end
 
-function SWEP:Attack(riposte,flip)
+function SWEP:Attack(riposte, flip)
 	local o = self:GetOwner()
 	self.m_tFilter[#self.m_tFilter + 1] = o
 	
-	if flip == -1 then
-		self.m_bFlip = true
-		else
-		self.m_bFlip = false
-	end
-	self:StateUpdate(o,STATE_ATTACK,ANIM_SKIP,riposte,self.m_bFlip)
+	self.m_bFlip = flip == -1
+	self:StateUpdate(o, STATE_ATTACK, self.m_iAnim, riposte, self.m_bFlip) -- ANIM_SKIP
 	self.m_flPrevRecovery = CurTime() + self.Recovery + self.AngleStrike * self.Release
 	self.slashtag = self:EntIndex()
 	self:EyeAnglesUpdate()
@@ -118,66 +110,68 @@ function SWEP:Attack(riposte,flip)
 					st = ep + normal:Forward() * (32+6*(iAng/iAngleFinal)) + normal:Up() * -8 + normal:Right() * 8*flip
 					en = ep + normal:Forward() * ((32 + self.Range)+6*(iAng/iAngleFinal)) + normal:Up() * -8 + normal:Right() * 8*flip
 				end
-				local t = util.TraceLine({
+				o:LagCompensation(true)
+				local tr = util.TraceHull({
 					start = st,
 					endpos = en,
-					filter = self.m_tFilter
+					filter = self.m_tFilter,
 				})
-				if t.HitWorld then
+				o:LagCompensation(false)
+				if tr.HitWorld then
 					self:AttackFinish(true,st,en,self.slashtag)
 					GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
 					o:EmitSound("physics/concrete/concrete_impact_bullet"..math.random(4)..".wav",75,100,1)
 					return
 				end
-				if t.Entity ~= NULL and t.Entity ~= o then
-					if t.Entity:GetClass() == "player" and t.Entity:GetActiveWeapon() then
-						if t.Entity:GetActiveWeapon().m_iState == STATE_PARRY then -- PARRY
-							self:Riposte(t.Entity) -- RIPOSTE and PARRY
+				if tr.Entity ~= NULL and tr.Entity ~= o then
+					if tr.Entity:GetClass() == "player" and tr.Entity:GetActiveWeapon() then
+						if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY then -- PARRY
+							self:Riposte(tr.Entity) -- RIPOSTE and PARRY
 							self:AttackFinish(true,st,en,self.slashtag)
 							GAMEMODE:StaminaUpdate(o,nil,true)
 							self:SetHoldType(self.IdleAnim)
 							
 							local effectdata = EffectData()
-							effectdata:SetOrigin(t.HitPos)
-							--effectdata:SetNormal(t.HitPos:Normalize())
+							effectdata:SetOrigin(tr.HitPos)
+							--effectdata:SetNormal(tr.HitPos:Normalize())
 							util.Effect("MetalSpark", effectdata, true,false)
 							
 							return
 						else
 							if self.Cleave then
 								local bFilter = false
-								for _,f in pairs(self.m_tFilter) do
-									if t.Entity == f then
+								for _, f in pairs(self.m_tFilter) do
+									if tr.Entity == f then
 										bFilter = true
 										break
 									end
 								end
 								if bFilter == false then
-									self:Flinch(t.Entity)
+									self:Flinch(tr.Entity)
 									GAMEMODE:StaminaUpdate(o,o.m_iStamina + 40,true)
-									self:DamageSimple(iAng,t.Entity,CheckMulti(t.Entity,t.HitGroup))
+									self:DamageSimple(iAng,tr.Entity,CheckMulti(tr.Entity,tr.HitGroup))
 									
-									self.m_tFilter[#self.m_tFilter + 1] = t.Entity
+									self.m_tFilter[#self.m_tFilter + 1] = tr.Entity
 								end
 							else
-								self:Flinch(t.Entity)
+								self:Flinch(tr.Entity)
 								GAMEMODE:StaminaUpdate(o,o.m_iStamina + 40,true)
-								self:DamageSimple(iAng,t.Entity,CheckMulti(t.Entity,t.HitGroup))
+								self:DamageSimple(iAng,tr.Entity,CheckMulti(tr.Entity,tr.HitGroup))
 								self:AttackFinish(true,st,en,self.slashtag)
 								return
 							end
 						end
 							
-					elseif t.Entity:GetClass() == ("prop_physics" or "prop_physics_multiplayer" or "func_physbox") and t.Entity:GetPhysicsObject() then
-						t.Entity:GetPhysicsObject():SetVelocity(t.Entity:GetVelocity() + (t.Entity:GetPos()-t.HitPos)*1000)
-						t.Entity:EmitSound("physics/metal/metal_barrel_impact_hard"..math.random(3)..".wav",75,120,1)
-						self:DamageSimple(iAng,t.Entity,1)
+					elseif tr.Entity:GetClass() == ("prop_physics" or "prop_physics_multiplayer" or "func_physbox") and tr.Entity:GetPhysicsObject() then
+						tr.Entity:GetPhysicsObject():SetVelocity(tr.Entity:GetVelocity() + (tr.Entity:GetPos()-tr.HitPos)*1000)
+						tr.Entity:EmitSound("physics/metal/metal_barrel_impact_hard"..math.random(3)..".wav",75,120,1)
+						self:DamageSimple(iAng,tr.Entity,1)
 						self:AttackFinish(true,st,en,self.slashtag)
 						GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
 						return
 					end
 				end
-				if t.Entity == NULL then
+				if tr.Entity == NULL then
 					if self.m_iAnim ~= ANIM_THRUST then
 						if iAng > self.GlanceAngles then
 							SV_TRACER_DRAW(st,en,1,self.slashtag)
@@ -199,42 +193,74 @@ function SWEP:Attack(riposte,flip)
 	end
 end
 
-function SWEP:StateUpdate(p,s,a,r,f)
-	local w = p:GetActiveWeapon()
-	w.m_flPrevState = CurTime()
-	w.m_iState = s
-	if a ~= (ANIM_SKIP or ANIM_NONE) then
-		w.m_iAnim = a
-	end
-	if DEBUG_STATES:GetBool() then
-		DEBUG_I = DEBUG_I + 1
-		local str = ""
-		if r then
-			str = "RIPOSTE"
+do
+	local defseq = {
+		[STATE_IDLE] = {"idle"},
+		[STATE_PARRY] = {"parry"},
+		[STATE_WINDUP] = {
+			[ANIM_NONE] = "idle",
+			[ANIM_STRIKE] = "windup_strike",
+			[ANIM_UPPERCUT] = "windup_uppercut",
+			[ANIM_UNDERCUT] = "windup_undercut",
+			[ANIM_THRUST] = "windup_thrust"
+		},
+		-- STATE_RECOVERY will not have anims for now, also can't set its anims to ANIM_NONE due to it still being used in pmodel lua anims
+		[STATE_RECOVERY] = "idle",
+		[STATE_ATTACK] = {
+			[ANIM_NONE] = "idle",
+			[ANIM_STRIKE] = "attack_strike",
+			[ANIM_UPPERCUT] = "attack_uppercut",
+			[ANIM_UNDERCUT] = "attack_undercut",
+			[ANIM_THRUST] = "attack_thrust"
+		}
+	}
+	function SWEP:StateUpdate(p, s, a, r, f)
+		local w = p:GetActiveWeapon()
+		w.m_flPrevState = CurTime()
+		w.m_iState = s
+		--if a ~= (ANIM_SKIP or ANIM_NONE) then
+			w.m_iAnim = a
+		--end
+		if DEBUG_STATES:GetBool() then
+			DEBUG_I = DEBUG_I + 1
+			print(DEBUG_I, p, DEF_STATE[s], DEF_ANIM[a], r and "RIPOSTE" or "")
 		end
-		print(DEBUG_I, p, DEF_STATE[s], DEF_ANIM[a], str)
-	end
-	if s == STATE_RECOVERY then
-		timer.Simple(w.Windup, function()
-			if p:IsValid() and !w.m_bRiposting and w.m_iState == STATE_RECOVERY then
-				self:StateUpdate(p,STATE_IDLE,ANIM_NONE)
-			end
-		end)
-	end
+		if s == STATE_RECOVERY then
+			timer.Simple(w.Windup, function()
+				if p:IsValid() and not w.m_bRiposting and w.m_iState == STATE_RECOVERY then
+					self:StateUpdate(p, STATE_IDLE, ANIM_NONE)
+				end
+			end)
+		end
 
-	--w:SetDTInt(WEP_STATE,s)
-	--w:SetDTBool(0,r or false)
-	--if a ~= nil and a ~= ANIM_SKIP then
-		--w:SetDTInt(WEP_ANIM,a)
-	--end
-	
-	net.Start("ms_state_update")
-		net.WriteUInt(p:UserID(),16)
-		net.WriteUInt(s,3)
-		net.WriteUInt(a or ANIM_SKIP,3)
-		net.WriteBool(r or false) -- bitset maybe?
-		net.WriteBool(f or false)
-	net.Broadcast()
+		--w:SetDTInt(WEP_STATE,s)
+		--w:SetDTBool(0,r or false)
+		--if a ~= nil and a ~= ANIM_SKIP then
+			--w:SetDTInt(WEP_ANIM,a)
+		--end
+
+		local vm = p:GetViewModel()
+		-- local lseq, ldur = defseq[s] ~= STATE_RECOVERY and vm:LookupSequence(defseq[s][a]) or vm:LookupSequence(defseq[s])
+		if defseq[s] ~= STATE_RECOVERY then
+			lseq, ldur = vm:LookupSequence(defseq[s][a])
+		else
+			lseq, ldur = vm:LookupSequence(defseq[s])
+		end
+		vm:SendViewModelMatchingSequence(lseq)
+		-- Should move these calcs to client
+		-- Thrust has terrible playback rate
+		local calcwindup = r and w.Windup * w.RiposteMulti or w.Windup
+		local prate = s ~= STATE_ATTACK and ldur / calcwindup or ldur / (w.Release * w.AngleStrike)
+		vm:SetPlaybackRate(prate)
+		
+		net.Start("ms_state_update")
+			net.WriteUInt(p:UserID(),16)
+			net.WriteUInt(s,3)
+			net.WriteUInt(a or ANIM_SKIP,3)
+			net.WriteBool(r or false) -- bitset these maybe?
+			net.WriteBool(f or false)
+		net.Broadcast()
+	end
 end
 
 function SWEP:EyeAnglesUpdate()
@@ -244,20 +270,20 @@ function SWEP:EyeAnglesUpdate()
 	end
 end
 
-function SWEP:AttackFinish(sv_tracers,tracerst,traceren,tracertag)
+function SWEP:AttackFinish(sv_tracers, tracerst, traceren, tracertag)
 	
 	local o = self:GetOwner()
 	
 	self.m_flPrevRecovery = CurTime() + self.Recovery
 	
-	self:StateUpdate(o,STATE_RECOVERY,ANIM_SKIP,false,self.m_bFlip)
+	self:StateUpdate(o, STATE_RECOVERY, self.m_iAnim, false, self.m_bFlip) -- ANIM_SKIP
 
 	table.Empty(self.m_tFilter)
 	self.m_bRiposting = false
 	self:SetHoldType(self.IdleAnim)
 	
 	if DRAW_SV_TRACERS:GetBool() and sv_tracers then
-		SV_TRACER_DRAW(tracerst,traceren,3,tracertag)
+		SV_TRACER_DRAW(tracerst, traceren,3, tracertag)
 	end
 end
 
@@ -267,14 +293,18 @@ function SWEP:Flinch(p)
 	
 	w.m_flPrevParry = 0.0
 	w.m_flPrevFlinch = CurTime() + self.Recovery --+ self.AngleStrike * self.Release
-	timer.Stop("ms_attack_"..w:EntIndex())
+	timer.Stop("ms_attack_" .. w:EntIndex())
 	
 	p:EmitSound("physics/flesh/flesh_strider_impact_bullet"..math.random(3)..".wav",75,120,1)
+	self:StateUpdate(p, STATE_RECOVERY, ANIM_NONE)
+	--[[
+	-- CSENT flinch recovery anim
 	if w.m_iState ~= STATE_IDLE then
-		self:StateUpdate(p,STATE_RECOVERY)
+		self:StateUpdate(p, STATE_RECOVERY)
 		else
-		self:StateUpdate(p,STATE_RECOVERY,ANIM_NONE)
+		self:StateUpdate(p, STATE_RECOVERY, ANIM_NONE)
 	end
+	]]
 end
 
 function SWEP:Riposte(p) -- successful parry
@@ -308,23 +338,23 @@ function SWEP:Parry()
 		
 		if self.m_iState == STATE_IDLE or STATE_WINDUP then
 			
-			o:EmitSound("physics/flesh/flesh_impact_hard3.wav",75,100,1)
+			o:EmitSound("physics/flesh/flesh_impact_hard3.wav", 75, 100, 1)
 			self:SetHoldType(self.ParryAnim)
 			
 			if self.m_iState == STATE_WINDUP then
-				GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.FeintDrain,true) --FTP punish
+				GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.FeintDrain, true) -- FTP punish
 			elseif self.m_iState == STATE_IDLE then
-				GAMEMODE:StaminaUpdate(o,nil,true)
+				GAMEMODE:StaminaUpdate(o, nil, true)
 			end
 			
 			timer.Stop("ms_attack_"..self:EntIndex())
-			self:StateUpdate(o,STATE_PARRY,ANIM_NONE)
+			self:StateUpdate(o, STATE_PARRY, ANIM_NONE)
 			self:EyeAnglesUpdate()
 			
 			timer.Simple(1/3, function()
 				if self.m_iState == STATE_WINDUP and self.m_flPrevRecovery == 0.0 then return end
-				if !self.m_bRiposting then
-					self:StateUpdate(o,STATE_RECOVERY,ANIM_NONE)
+				if not self.m_bRiposting then
+					self:StateUpdate(o, STATE_RECOVERY, ANIM_NONE)
 				end
 				
 				self:SetHoldType(self.IdleAnim)
@@ -336,10 +366,10 @@ function SWEP:Parry()
 end
 
 function SWEP:Feint()
-	if self.m_iState == STATE_WINDUP and !self.m_bRiposting and self:GetOwner().m_iStamina ~= 0 then
+	if self.m_iState == STATE_WINDUP and not self.m_bRiposting and self:GetOwner().m_iStamina ~= 0 then
 		local o = self:GetOwner()
-		self:StateUpdate(o,STATE_IDLE)
-		timer.Stop("ms_attack_"..self:EntIndex())
-		GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.FeintDrain,true)
+		self:StateUpdate(o, STATE_IDLE, ANIM_NONE)
+		timer.Stop("ms_attack_" .. self:EntIndex())
+		GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.FeintDrain, true)
 	end
 end

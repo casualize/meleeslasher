@@ -9,17 +9,17 @@ SWEP.Secondary.DefaultClip = -1
 SWEP.Secondary.Ammo = "none"
 SWEP.Secondary.Automatic = false
 
-SWEP.ViewModel = "" -- "models/aoc_weapon/v_longsword.mdl"
-SWEP.WorldModel = "models/aoc_weapon/w_sword_01.mdl"
-SWEP.ShowWorldModel = false
-
-SWEP.ViewModelFlip = true
+SWEP.ViewModel = Model( "models/weapons/c_greatsword.mdl" )
+SWEP.WorldModel = Model( "models/weapons/w_greatsword.mdl" )
+SWEP.ViewModelFOV = 100
+-- SWEP.ShowWorldModel = false
+SWEP.UseHands = true
 
 --CUSTOM SWEP VARIABLES--
 SWEP.Name = "base"
 SWEP.ThrustDamage = 10
 SWEP.SwingDamage = 25 -- 35
-SWEP.Range = 36
+SWEP.Range = 64 -- 36
 SWEP.Lunge = 40 -- (u/s)
 SWEP.Release = 0.002 -- how fast angle degree ticks, swep.release*swep.angle for time taken swinging 
 SWEP.Windup = (2/3)
@@ -32,7 +32,7 @@ SWEP.Cleave = true
 SWEP.GlanceAngles = -1 --8
 SWEP.StaminaDrain = 9
 SWEP.FeintDrain = 7
-SWEP.Model = "models/aoc_weapon/w_sword_01.mdl"
+SWEP.Model = "models/aoc_weapon/w_sword_01.mdl" -- For CSENT anims
 
 SWEP.ParryAnim = "revolver"
 SWEP.IdleAnim = "melee2"
@@ -54,26 +54,26 @@ SWEP.m_flPrevFlinch = 0.0
 SWEP.m_flPrevState = 0.0
 
 SWEP.slashtag = 0 -- might get deprecated
-SWEP.m_soundRelease = {"vo/npc/male01/pain04","vo/npc/male01/pain03"} -- might get deprecated
+SWEP.m_soundRelease = {"vo/npc/male01/pain04", "vo/npc/male01/pain03"} -- might get deprecated
 
---TO DO/ISSUES-----------------------------
--- Bandaid fix to IK (for enablematrix issue): manipulate left hand's bones to the right one when flipped attack
--- If u feint late on strike windup then when switching to thrust it will mess up 1 of the bones for it
--- Being outside the map will make your ActiveWeapon nil
---new mechanic ideas: punish for feeding ripostes in 1vx? ur dmg doubles if u parry twice, thrice etc.
---Player_Anim performance fix, use returns for boneanglemanip instead, maybe use different hook?
---slighten the tracer amount, make it attached to FrameTime()?
---isvalid checks
---more complex bot
---microoptimize swings/thinks
---optimize object construction(skip vectors, angle construction etc)
---DISCLAIMER: bindings ~= PrimaryAttack or etc, those are more complicated, should research this
---net library is NOT predicted = awful gameplay, use setdt instead
---hands model for FP
---rework movement (chase mechanic)
---move most of the internal vars into player
---lua_run_cl hook.Add("Tick","a",function() print(LocalPlayer():GetActiveWeapon().m_iState) end)
---lua_run hook.Add("Tick","a",function() print(Player(N):GetActiveWeapon().m_iState) end)
+--TODO/BUG--------------------------
+--[[
+	BUG: If u feint late on strike windup then when switching to thrust it will mess up 1 of the bones for it
+	BUG: Being outside the map boundaries will make your ActiveWeapon nil
+	BUG: method SetPoseParameter draws another pmodel? No longer? wtf
+	BUG: Should update bone vars upon new pmodel, now it's using render hook...
+	BUG: Dying during a flip state causes it to last even during new spawn
+	TODO: Bandaid fix to IK (for enablematrix issue): manipulate left hand's bones to the right one when flipped attack
+	TODO: Flinch anim
+	TODO: Proper integration for lag comp
+	TODO: Red parry message
+	TODO: rework CSENT(make sures every var gets init properly)
+	GAMEIDEAS: Chain riposting(1vx) multiplies your weapon damage, ...
+	STUDYTHIS: What makes bindings different from hard-coded methods like PrimaryAttack, ...
+	NETFIX: Move everything to SetDT because of better prediction, ...
+	MOVEMENT REWORK: chase mechanic, ...
+	CLEANUP: Move weapon internal vars into player, Microopt swings/thinks, Skip object constructs, IsValid checks, ...
+--]]
 ------------------------------------
 function SWEP:Initialize()
 	self:SetHoldType(self.IdleAnim)

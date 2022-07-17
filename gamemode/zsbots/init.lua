@@ -150,7 +150,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 				if (targetstate == STATE_IDLE or targetstate == STATE_RECOVERY)  then
 					if wep.m_iState == STATE_IDLE then
 						if pl.m_flPrevFeint + 0.4 <= CurTime() then
-							--pl.m_aAttack = Angle(math.random(-45,45),math.random(-90,90),0)
+							pl.m_aAttack = Angle(math.random(-30,30),math.random(-30,30),0)
 							wep:m_fWindup(math.random(2,5), false, math.random() >= 0.5)
 						end
 					end
@@ -158,7 +158,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 						viewang = (destination - mypos):Angle():__add(pl.m_aAttack)
 						if pl.m_flDebugNext + 0.1 <= CurTime() then
 							pl.m_flDebugNext = CurTime()
-							pl.m_aAttack = Angle(math.random(-45,45),math.random(-45,45),0)
+							pl.m_aAttack = Angle(math.random(-30,30),math.random(-30,30),0)
 						end
 						if pl.m_flNextFeint <= CurTime() then
 							pl.m_flNextFeint = CurTime() + math.Rand(0.5,4)
@@ -257,7 +257,7 @@ end
 local NextBotTick = 0
 function ZSBOTS.Think()
 	for _, bot in ipairs(Bots) do
-		if !bot:Alive() then
+		if not bot:Alive() then
 			gamemode.Call("PlayerDeathThink", bot)
 		end
 	end
@@ -293,7 +293,7 @@ function ZSBOTS.Think()
 
 				-- Greatly favor people that are visible
 				obstrace.endpos = target:WorldSpaceCenter()
-				if !util_TraceEntity(obstrace, bot).Hit then
+				if not util_TraceEntity(obstrace, bot).Hit then
 					dist_mul = dist_mul / 2
 				end
 
@@ -373,7 +373,7 @@ local randomtaunts = {
 	":dsp drot=-90 rotrate=60::gunl drot=25 rotrate=130::ahhahahaha c=255,0,0::youdied:"
 }
 function ZSBOTS.DoPlayerDeath(p, att, info)
-	if att.IsZSBot and !p:IsBot() then
+	if att.IsZSBot and not p:IsBot() then
 		att:Say(table.Random(randomtaunts))
 	end
 end

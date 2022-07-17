@@ -14,12 +14,9 @@ include("zsbots/init.lua")
 
 function GM:StaminaUpdate(ent,i,punish)
 	if IsValid(ent) and ent:IsPlayer() then
-		if punish then
-			ent.m_flPrevStamina = CurTime() + 4
-		end
-		
+		ent.m_flPrevStamina = punish and CurTime() + 4 or ent.m_flPrevStamina
 		if i ~= nil then
-			ent.m_iStamina = math.Clamp(i,0,ent.m_iMaxStamina)
+			ent.m_iStamina = math.Clamp(i, 0, ent.m_iMaxStamina)
 		
 			net.Start("ms_stamina_update")
 				net.WriteUInt(ent.m_iStamina,8)
@@ -52,40 +49,52 @@ function GM:PlayerNoClip()
 end
 
 --player_mdl = {"e_archer","e_footman","e_knight","g_archer","g_footman","g_knight","peasant"}
-	--p:SetModel("models/player/aoc_"..player_mdl[math.random(#player_mdl)]..".mdl")
-	
-function GM:PlayerSpawn(p)
+--p:SetModel("models/player/aoc_"..player_mdl[math.random(#player_mdl)]..".mdl")
 
-	local strModel = "models/player/breen.mdl"
+function GM:PlayerSpawn(p)
+	local strModel
 	local strInfo = p:GetInfo("cl_playermodel")
-	for _,str in ipairs(player_manager.AllValidModels()) do
-		if strInfo == str then
+	for k, v in pairs(player_manager.AllValidModels()) do
+		if strInfo == valid then
 			strModel = strInfo
 		end
 	end
+	strModel = not strModel and table.Random(player_manager.AllValidModels()) or strModel
 	p:SetModel(strModel)
+	p:SetPlayerColor(Vector(math.Rand(0, 0.5), math.Rand(0, 0.5), math.Rand(0, 0.5)))
 	
 	p:Give("weapon_ms_base")
-	if p:IsBot() then p:GetActiveWeapon().Primary.Automatic = true end
 	p:SetFOV(120)
-	p:SetPlayerColor(Vector(math.Rand(0,0.5),math.Rand(0,0.5),math.Rand(0,0.5)))
 	p:SetCanZoom(false)
 	
-	p:SetWalkSpeed(100)
-	p:SetRunSpeed(100)
+	p:SetWalkSpeed(GAME_MVSPEED)
+	p:SetRunSpeed(GAME_MVSPEED)
 	
 	--VARS--
 	
 	p.m_flPrevStamina = 0.0
-	p.m_iStamina = 100
-	p.m_iMaxStamina = 100
+	p.m_iStamina = 100000
+	p.m_iMaxStamina = 100000
 	
-	self:StaminaUpdate(p,100)
+	self:StaminaUpdate(p, 100000)
 	p.m_soundLowStamina = CreateSound(p,"player/breathe1.wav")
+
+	p:SetupHands() -- Create the hands and call GM:PlayerSetHandsModel
+end
+
+-- Choose the model for hands according to their player model.
+function GM:PlayerSetHandsModel( ply, ent )
+	local simplemodel = player_manager.TranslateToPlayerModelName( ply:GetModel() )
+	local info = player_manager.TranslatePlayerHands( simplemodel )
+	if (info) then
+		ent:SetModel(info.model)
+		ent:SetSkin(info.skin)
+		ent:SetBodyGroups(info.body)
+	end
 end
 
 function GM:Think()
-	for _,p in ipairs(player.GetAll()) do
+	for _, p in ipairs(player.GetAll()) do
 		if CurTime() >= p.m_flPrevStamina and p.m_iStamina < p.m_iMaxStamina then
 			self:StaminaUpdate(p, p.m_iStamina + 2, false) -- terrible for net.
 		end
@@ -97,7 +106,7 @@ function GM:Think()
 				p.m_soundLowStamina:Stop()
 			end
 		elseif p.m_iStamina <= 20 then
-			if !p.m_soundLowStamina:IsPlaying() then
+			if not p.m_soundLowStamina:IsPlaying() then
 				p.m_soundLowStamina:Play()
 			end
 			if p.m_iStamina == 0 then
@@ -125,11 +134,9 @@ end)
 
 function GM:EntityTakeDamage(ent, info)
 	if ent:GetClass() == "player" then
-		if info:GetDamage() >= 10 then
-			ent:EmitSound("vo/npc/male01/pain0"..math.random(8,9)..".wav",75,100,1)
-		else
-			ent:EmitSound("vo/npc/male01/pain0"..math.random(1,3)..".wav",75,100,1)
-		end
+		local strid = info:GetDamage() >= 10 and math.random(8,9) or math.random(1,3)
+		ent:EmitSound("vo/npc/male01/pain0" .. strid .. ".wav", 75, 100, 1)
+
 		GAMEMODE:StaminaUpdate(ent,nil,true)
 	end
 end

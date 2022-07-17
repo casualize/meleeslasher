@@ -2,7 +2,7 @@ function GM:CalcMainActivity(ply, velocity) -- Overriden function, removed jumpi
 	ply.CalcIdeal = ACT_HL2MP_RUN
 	ply.CalcSeqOverride = -1
 
-	if !( self:HandlePlayerNoClipping(ply, velocity) or
+	if not ( self:HandlePlayerNoClipping(ply, velocity) or
 		self:HandlePlayerDriving(ply) or
 		self:HandlePlayerVaulting(ply, velocity) or
 		self:HandlePlayerSwimming(ply, velocity) or
@@ -13,7 +13,7 @@ function GM:CalcMainActivity(ply, velocity) -- Overriden function, removed jumpi
 	end
 
 	ply.m_bWasOnGround = ply:IsOnGround()
-	ply.m_bWasNoclipping = ( ply:GetMoveType() == MOVETYPE_NOCLIP and !ply:InVehicle() )
+	ply.m_bWasNoclipping = ( ply:GetMoveType() == MOVETYPE_NOCLIP and not ply:InVehicle() )
 
 	return ply.CalcIdeal, ply.CalcSeqOverride
 end

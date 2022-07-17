@@ -44,17 +44,6 @@ net.Receive("ms_tracer_server", function()
 	end)
 end)
 
-local function CL_TRACER_DRAW(st, en) --this is tied to the framerate!
-	CL_LINE_DATA[#CL_LINE_DATA + 1] = st
-	CL_LINE_DATA[#CL_LINE_DATA + 1] = en
-	
-	timer.Simple(CL_TRACER_LIFETIME:GetFloat(), function()
-		for i = 1, 2 do
-			table.remove(CL_LINE_DATA, 1)
-		end
-	end)
-end
-
 net.Receive("ms_stamina_update",function()
 	local i = net.ReadUInt(8)
 	local p = net.ReadEntity()
@@ -72,7 +61,7 @@ net.Receive("ms_state_update", function()
 		w.m_flPrevState = CurTime()
 		w.m_iState		= s
 		w.m_iFlip		= f and -1 or 1 -- Converts from bool to number for arithmetic purposes
-		w.m_iAnim		= a ~= ANIM_SKIP and a or w.m_iAnim
+		w.m_iAnim		= a ~= ANIM_SKIP and a or w.m_iAnim -- ANIM_SKIP is now unused
 		w.m_bRiposting	= r
 		AnimInit(Player(p), s, a, f)
 	end
@@ -87,7 +76,7 @@ function GM:InitPostEntity()
 end
 
 function AnimReset(p)
-	if !IsValid(p) then return end
+	if not IsValid(p) then return end
 	for b = 0, p:GetBoneCount() do
 		p:ManipulateBoneAngles(b, Angle(0, 0, 0))
 	end
@@ -97,9 +86,9 @@ function AnimInit(p, s, a, f)
 	p.m_aRHand = p:GetManipulateBoneAngles(p.m_iRHand)
 	p.m_aRForearm = p:GetManipulateBoneAngles(p.m_iRForearm)
 	p.m_aRUpperarm = p:GetManipulateBoneAngles(p.m_iRUpperarm)
-	do local _ = s == STATE_PARRY and AnimReset(p) end
-
-	-- Known bug, GMod disables inverse kinematics when enablematrix is applied
+	if s == STATE_PARRY then
+		AnimReset(p)
+	end
 	if f then
 		p:EnableMatrix ("RenderMultiply", Matrix({{1, 0, 0, 0},{0, -1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}))
 	else
@@ -108,7 +97,7 @@ function AnimInit(p, s, a, f)
 end
 
 function GM:PlayerBindPress(p, bind)
-	for k,v in pairs(ATTACK_BIND) do -- would do ipairs...
+	for k, v in pairs(ATTACK_BIND) do -- would do ipairs...
 		if string.find(bind,v) then
 			net.Start("ms_bind_attack")
 				net.WriteUInt(k, 3)
@@ -116,7 +105,7 @@ function GM:PlayerBindPress(p, bind)
 			net.SendToServer()
 		end
 	end
-	for k,v in ipairs(OTHER_BIND) do
+	for k, v in ipairs(OTHER_BIND) do
 		if bind == v then --string.find(bind,v) then --this messes with +menu and +menu_context...
 			net.Start("ms_bind_other")
 				net.WriteUInt(k, 3)
@@ -133,11 +122,11 @@ concommand.Add("ms_help", function()
 	[[
 	Welcome to Melee Slasher.
 	If you've played Chivalry or MORDHAU before you should feel at home,  
-	as the gamemode mechanics makes akin to it: riposting, feinting, swing
-	manipulation, etc.                                                 
+	as the gamemode mechanics makes akin to it: riposting, feinting and 
+	swing manipulation.                                                 
 	If you are new to this game genre then proceed to read below.      
 
-	You MUST understand the core mechanic of this game - riposting.
+	It is crucial to use the core mechanic of this game - riposting.
 	A riposte is performed when you parry opponent's attack AND you input
 	attack right afterwards, this makes you unflinchable.   		   
 
@@ -187,6 +176,18 @@ function GM:PlayerTick(p, mv) -- Provides CMoveData context
 	p:GetActiveWeapon().m_bFlip = mv:KeyDown(IN_RELOAD)
 end
 
+
+local function CL_TRACER_DRAW(st, en) -- This is tied to the framerate
+	CL_LINE_DATA[#CL_LINE_DATA + 1] = st
+	CL_LINE_DATA[#CL_LINE_DATA + 1] = en
+	
+	timer.Simple(CL_TRACER_LIFETIME:GetFloat(), function()
+		for i = 1, 2 do
+			table.remove(CL_LINE_DATA, 1)
+		end
+	end)
+end
+
 local PREV_ANG, PREV_ST
 local function CalcViewModelRecovery(w, e, inv, rot, flip)
 	local ea = LocalPlayer():EyeAngles()
@@ -216,8 +217,8 @@ local function CalcViewModelSlash(w, e, inv, rot, flip)
 	PREV_ANG = flAng
 end
 
-hook.Add("CalcViewModelView","Viewmodel_Anim", function() 
-	if LocalPlayer() and !LocalPlayer().CSENT and LocalPlayer():GetActiveWeapon().Model then --INIT CSENT, we could use GM:InitPostEntity() instead
+hook.Add("CalcViewModelView","CSENT_Anim", function() 
+	if LocalPlayer() and not LocalPlayer().CSENT and LocalPlayer():GetActiveWeapon().Model then --INIT CSENT, we could use GM:InitPostEntity() instead
 		local p = LocalPlayer()
 		p.CSENT = ClientsideModel(p:GetActiveWeapon().Model, RENDERGROUP_BOTH)
 		p.CSENT:SetRenderMode(RENDERMODE_TRANSCOLOR)
@@ -226,6 +227,7 @@ hook.Add("CalcViewModelView","Viewmodel_Anim", function()
 		p.m_iMaxStamina = 100
 		p.m_eTarget = nil
 	end
+
 	if IsValid(LocalPlayer():GetActiveWeapon()) and LocalPlayer().CSENT then -- 1P
 		local p = LocalPlayer()
 		local ea = p:EyeAngles()
@@ -233,6 +235,7 @@ hook.Add("CalcViewModelView","Viewmodel_Anim", function()
 		local w = p:GetActiveWeapon()
 		local flip = w.m_iFlip
 		local CSENT = LocalPlayer().CSENT
+		--[[
 		if w.m_iState == STATE_IDLE then
 			CSENT:SetPos(ep+ea:Forward()*16+ea:Right()*8)
 			CSENT:SetAngles(Angle(ea[1]+90, ea[2], 0))
@@ -295,20 +298,20 @@ hook.Add("CalcViewModelView","Viewmodel_Anim", function()
 				PREV_ANG = flAng
 			end
 		end
-
+		]]
 		-- Sets target for vgui stuff
 		p.m_eTarget = (IsValid(p:GetEyeTrace().Entity) and p:GetEyeTrace().Entity:GetClass() == "player") and p:GetEyeTrace().Entity or nil
 	end
 end)
 
-hook.Add("PostPlayerDraw", "Player_Anim", function(p) 
+hook.Add("PostPlayerDraw", "PmodelLua_Anim", function(p) 
 	if IsValid(p:GetActiveWeapon()) then
 		-- Can be faulty if playermodel is changed
-		if !p.m_iRHand then
-			p.m_iRHand = p:LookupBone("ValveBiped.Bip01_R_Hand")
+		if not p.m_iRHand then
+			p.m_flPrevAng = 0.0
 			p.m_iRForearm = p:LookupBone("ValveBiped.Bip01_R_Forearm")
 			p.m_iRUpperarm = p:LookupBone("ValveBiped.Bip01_R_UpperArm")
-			p.m_flPrevAng = 0.0
+			p.m_iRHand = p:LookupBone("ValveBiped.Bip01_R_Hand")
 		end
 
 		local w = p:GetActiveWeapon()
@@ -320,7 +323,6 @@ hook.Add("PostPlayerDraw", "Player_Anim", function(p)
 		--w.m_bRiposting = w:GetDTBool(0)
 
 		-- Inverts poseparams and texture normals because pmodel gets enablematrix'd with a negative value
-		-- BUG: method SetPoseParameter draws another pmodel?
 		p.RenderOverride = function(self)
 			if w.m_iFlip ~= 1 then
 				render.CullMode(MATERIAL_CULLMODE_CW)
@@ -336,7 +338,7 @@ hook.Add("PostPlayerDraw", "Player_Anim", function(p)
 		end
 
 		if w.m_iState == STATE_IDLE then
-			if !p:GetManipulateBoneAngles(p.m_iRHand):__eq(Angle()) then -- rhand is always changed
+			if not p:GetManipulateBoneAngles(p.m_iRHand):__eq(Angle()) then -- rhand is always changed
 				local flFraction = 1 - math.ease.OutCubic(math.Clamp((CurTime()-w.m_flPrevState)/w.Recovery, 0, 1))
 				p:ManipulateBoneAngles(p.m_iRHand, p.m_aRHand:__mul(flFraction))
 				p:ManipulateBoneAngles(p.m_iRForearm, p.m_aRForearm:__mul(flFraction))
@@ -412,35 +414,33 @@ function GM:Initialize()
 	self:BuildUserInterface()
 end
 
-function GM:PostDrawOpaqueRenderables()
-	for i = 1, #SV_LINE_DATA, 4 do
-		if SV_LINE_DATA[i+2] == 1 then
-			render.DrawLine(SV_LINE_DATA[i], SV_LINE_DATA[i+1], Color(255, 0, 0))
-		elseif SV_LINE_DATA[i+2] == 2 then
-			render.DrawLine(SV_LINE_DATA[i], SV_LINE_DATA[i+1], Color(0, 255, 255))
-		elseif SV_LINE_DATA[i+2] == 3 then
-			render.DrawLine(SV_LINE_DATA[i], SV_LINE_DATA[i+1], Color(0, 255, 0))
+do
+	local ctable = {
+		[1] = Color(255, 0, 0),
+		[2] = Color(0, 255, 255),
+		[3] = Color(0, 255, 0)
+	}
+	hook.Add("PostDrawOpaqueRenderables", "Debug_Drawtrace", function()
+		for i = 1, #SV_LINE_DATA, 4 do
+			render.DrawLine(SV_LINE_DATA[i], SV_LINE_DATA[i+1], ctable[SV_LINE_DATA[i+2]])
+			if SV_LINE_DATA[i+4] and SV_LINE_DATA[i+7] == SV_LINE_DATA[i+3] then
+				render.DrawLine(SV_LINE_DATA[i+1], SV_LINE_DATA[i+5], Color(0, 255, 0))
+			end
 		end
-		
-		if SV_LINE_DATA[i+4] and SV_LINE_DATA[i+7] == SV_LINE_DATA[i+3] then
-			render.DrawLine(SV_LINE_DATA[i+1], SV_LINE_DATA[i+5], Color(0, 255, 0))
+		for i = 1, #CL_LINE_DATA, 2 do
+			render.DrawLine(CL_LINE_DATA[i], CL_LINE_DATA[i+1], Color(255, 255, 0))
 		end
-	end
-	for i = 1, #CL_LINE_DATA, 2 do
-		render.DrawLine(CL_LINE_DATA[i], CL_LINE_DATA[i+1], Color(255, 255, 0))
-	end
+	end)
 end
-
-		--[[
-		-- Immersive first person for Calcview hook (its bad)
-			LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Head1"),Vector(0,0,0))
-			LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Neck1"),Vector(0,0,0))
-			LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Spine4"),Vector(0,0,0))
-			CAM_DATA.origin = LocalPlayer():GetBonePosition(6)+ LocalPlayer():EyeAngles():Up()*4 + LocalPlayer():EyeAngles():Forward()*-8--nil
-			LocalPlayer().CSENT:SetColor(Color(255,255,255,0))
-		]]
-
-function GM:CalcView(p, pos)
+--[[
+-- Immersive first person for Calcview hook (its bad)
+	LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Head1"),Vector(0,0,0))
+	LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Neck1"),Vector(0,0,0))
+	LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Spine4"),Vector(0,0,0))
+	CAM_DATA.origin = LocalPlayer():GetBonePosition(6)+ LocalPlayer():EyeAngles():Up()*4 + LocalPlayer():EyeAngles():Forward()*-8--nil
+	LocalPlayer().CSENT:SetColor(Color(255,255,255,0))
+]]
+hook.Add("CalcView", "SwitchPerspective", function()
 	if LocalPlayer().CSENT then
 		if CAM_DATA.drawviewer then
 			CAM_DATA.origin = LocalPlayer():GetPos() + LocalPlayer():EyeAngles():Forward()*-32 + Vector(0, 0, 64)
@@ -451,19 +451,21 @@ function GM:CalcView(p, pos)
 		end
 		return CAM_DATA
 	end
-end
-
-local forbidden_huds = {
-	["CHudHealth"] = true,
-	["CHudBattery"] = true,
-	["CHudAmmo"] = true,
-	["CHudSecondaryAmmo"] = true,
-	["CHudWeaponSelection"] = true,
-	["CHudGMod"] = true -- Disables hudpaint hook
-}
-hook.Add("HUDShouldDraw", "HideHUD", function(name)
-	return forbidden_huds[name] and false
 end)
+
+do
+	local forbidden_huds = {
+		["CHudHealth"] = true,
+		["CHudBattery"] = true,
+		["CHudAmmo"] = true,
+		["CHudSecondaryAmmo"] = true,
+		["CHudWeaponSelection"] = true,
+		["CHudGMod"] = true -- Disables hudpaint hook
+	}
+	hook.Add("HUDShouldDraw", "HideHUD", function(name)
+		return forbidden_huds[name] and false
+	end)
+end
 
 hook.Add("CreateMove", "Turncap", function(cmd)
 	local w = LocalPlayer():GetActiveWeapon()
