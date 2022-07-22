@@ -15,7 +15,7 @@ SWEP.ViewModelFOV = 100
 -- SWEP.ShowWorldModel = false
 SWEP.UseHands = true
 
---CUSTOM SWEP VARIABLES--
+--CUSTOM SWEP FIELDS--
 SWEP.Name = "base"
 SWEP.ThrustDamage = 10
 SWEP.SwingDamage = 25 -- 35
@@ -29,7 +29,7 @@ SWEP.TurnCap = 200 -- 150
 SWEP.AngleStrike = 235
 SWEP.AngleStrikeOffset = 45
 SWEP.Cleave = true
-SWEP.GlanceAngles = -1 --8
+SWEP.GlanceAngles = -1 --8 -- Temporary anti-backswing
 SWEP.StaminaDrain = 9
 SWEP.FeintDrain = 7
 SWEP.Model = "models/aoc_weapon/w_sword_01.mdl" -- For CSENT anims
@@ -38,7 +38,7 @@ SWEP.ParryAnim = "revolver"
 SWEP.IdleAnim = "melee2"
 SWEP.WindupAnim = "melee2"
 
---INTERNAL SWEP VARIABLES--
+--INTERNAL SWEP FIELDS--
 SWEP.m_iState = STATE_IDLE -- sv/cl
 SWEP.m_iAnim = ANIM_NONE -- sv
 SWEP.m_iQueuedAnim = ANIM_NONE -- sv
@@ -60,14 +60,13 @@ SWEP.m_soundRelease = {"vo/npc/male01/pain04", "vo/npc/male01/pain03"} -- might 
 --[[
 	BUG: If u feint late on strike windup then when switching to thrust it will mess up 1 of the bones for it
 	BUG: Being outside the map boundaries will make your ActiveWeapon nil
-	BUG: method SetPoseParameter draws another pmodel? No longer? wtf
 	BUG: Should update bone vars upon new pmodel, now it's using render hook...
 	BUG: Dying during a flip state causes it to last even during new spawn
+	BIG: AnimRestartGestures
+	TODO: Merge DamageSimple and Flinch?
 	TODO: Bandaid fix to IK (for enablematrix issue): manipulate left hand's bones to the right one when flipped attack
-	TODO: Flinch anim
 	TODO: Proper integration for lag comp
-	TODO: Red parry message
-	TODO: rework CSENT(make sures every var gets init properly)
+	TODO: Red parry message (prediction support first though)
 	GAMEIDEAS: Chain riposting(1vx) multiplies your weapon damage, ...
 	STUDYTHIS: What makes bindings different from hard-coded methods like PrimaryAttack, ...
 	NETFIX: Move everything to SetDT because of better prediction, ...

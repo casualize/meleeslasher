@@ -30,18 +30,16 @@ function GM:AddNetworkStrings()
 	util.AddNetworkString("ms_tracer_server")
 	util.AddNetworkString("ms_stamina_update")
 	util.AddNetworkString("ms_state_update")
+	util.AddNetworkString("ms_inflict_player")
 	util.AddNetworkString("ms_ea_update")
 	util.AddNetworkString("ms_bind_attack")
 	util.AddNetworkString("ms_bind_other")
 end
 
 function GM:Initialize()
-	
+	self:AddNetworkStrings()
 	DRAW_SV_TRACERS = CreateConVar("ms_sv_draw_tracers", "0", true, false)
 	DEBUG_STATES = CreateConVar("ms_sv_debug_states", "0", true, false)
-	self:AddNetworkStrings()
-	DEBUG_I = 0 --state debugging
-	
 end
 
 function GM:PlayerNoClip()

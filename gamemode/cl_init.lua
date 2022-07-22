@@ -5,26 +5,25 @@ include("player_movement/shared.lua")
 include("player_movement/cl_init.lua")
 include("vgui/progressbars.lua")
 
-	ATTACK_BIND = {
-		[ANIM_STRIKE]= "+attack",
-		[ANIM_UPPERCUT]= "invnext",
-		[ANIM_UNDERCUT]= "+zoom",
-		[ANIM_THRUST]= "invprev"
-	}
-	OTHER_BIND = {
-		"+menu"
-	}
+ATTACK_BIND = {
+	[ANIM_STRIKE]= "+attack",
+	[ANIM_UPPERCUT]= "invnext",
+	[ANIM_UNDERCUT]= "+zoom",
+	[ANIM_THRUST]= "invprev"
+}
+OTHER_BIND = {
+	[1] = "+menu"
+}
 
-	local SV_LINE_DATA = {}
-	local CL_LINE_DATA = {}
-	
-	local CAM_DATA = {}
-	CAM_DATA.drawviewer = false
-	
-	DRAW_CL_TRACERS = CreateConVar("ms_cl_draw_tracers", "0", true, false)
-	CL_TRACER_LIFETIME = CreateConVar("ms_cl_cl_tracers_lifetime", "1", true, false)
-	SV_TRACER_LIFETIME = CreateConVar("ms_cl_sv_tracers_lifetime", "1", true, false)
-	
+ENABLE_CSENT = CreateConVar("ms_cl_enable_csent", "0", true, false)
+CL_DRAW_TRACERS = CreateConVar("ms_cl_draw_tracers", "0", true, false)
+CL_TRACER_LIFETIME = CreateConVar("ms_cl_cl_tracers_lifetime", "1", true, false)
+SV_TRACER_LIFETIME = CreateConVar("ms_cl_sv_tracers_lifetime", "1", true, false)
+
+local CL_LINE_DATA = {}
+local SV_LINE_DATA = {}
+
+-- Rewrite this
 net.Receive("ms_tracer_server", function()
 	do
 		local st = net.ReadVector()
@@ -60,11 +59,16 @@ net.Receive("ms_state_update", function()
 		local w = Player(p):GetActiveWeapon()
 		w.m_flPrevState = CurTime()
 		w.m_iState		= s
-		w.m_iFlip		= f and -1 or 1 -- Converts from bool to number for arithmetic purposes
+		w.m_iFlip		= f and -1 or 1 -- Converts from bool to number for arithmetic purpose
 		w.m_iAnim		= a ~= ANIM_SKIP and a or w.m_iAnim -- ANIM_SKIP is now unused
 		w.m_bRiposting	= r
 		AnimInit(Player(p), s, a, f)
 	end
+end)
+
+net.Receive("ms_inflict_player", function()
+	local p = net.ReadUInt(16) -- UserID
+	Player(p):AnimRestartGesture(GESTURE_SLOT_FLINCH, ACT_FLINCH_PHYSICS, true)
 end)
 
 net.Receive("ms_ea_update", function()
@@ -96,9 +100,11 @@ function AnimInit(p, s, a, f)
 	end
 end
 
+local CAM_DATA = {}
+CAM_DATA.drawviewer = false
 function GM:PlayerBindPress(p, bind)
-	for k, v in pairs(ATTACK_BIND) do -- would do ipairs...
-		if string.find(bind,v) then
+	for k, v in pairs(ATTACK_BIND) do -- Not sequential
+		if string.find(bind, v) then
 			net.Start("ms_bind_attack")
 				net.WriteUInt(k, 3)
 				net.WriteBool(p:GetActiveWeapon().m_bFlip)
@@ -106,16 +112,30 @@ function GM:PlayerBindPress(p, bind)
 		end
 	end
 	for k, v in ipairs(OTHER_BIND) do
-		if bind == v then --string.find(bind,v) then --this messes with +menu and +menu_context...
+		if bind == v then --string.find(bind,v) then -- This messes with +menu and +menu_context
 			net.Start("ms_bind_other")
 				net.WriteUInt(k, 3)
 			net.SendToServer()
 		end
 	end
 	if string.find(bind,"+menu_context") then
-		CAM_DATA.drawviewer = (CAM_DATA.drawviewer and {false} or {true})[1]
+		-- (expression and {false} or {true})[1] -- Reminder for if we want flipped result
+		CAM_DATA.drawviewer = not CAM_DATA.drawviewer
 	end
 end
+
+hook.Add("CalcView", "SwitchPerspective", function()
+	if LocalPlayer().CSENT then
+		if CAM_DATA.drawviewer then
+			CAM_DATA.origin = LocalPlayer():GetPos() + LocalPlayer():EyeAngles():Forward()*-32 + Vector(0, 0, 64)
+			LocalPlayer().CSENT:SetColor(Color(255, 255, 255, 0))
+		else
+			CAM_DATA.origin = nil
+			LocalPlayer().CSENT:SetColor(Color(255, 255, 255, 255))
+		end
+		return CAM_DATA
+	end
+end)
 
 concommand.Add("ms_help", function() 
 	print
@@ -172,239 +192,218 @@ concommand.Add("ms_help", function()
 	]]
 end)
 
-function GM:PlayerTick(p, mv) -- Provides CMoveData context
+function GM:PlayerTick(p, mv) -- Provides CMoveData context, works only on maxplayers > 1
 	p:GetActiveWeapon().m_bFlip = mv:KeyDown(IN_RELOAD)
 end
 
-
-local function CL_TRACER_DRAW(st, en) -- This is tied to the framerate
-	CL_LINE_DATA[#CL_LINE_DATA + 1] = st
-	CL_LINE_DATA[#CL_LINE_DATA + 1] = en
-	
+local function CL_TRACER_DRAW(...) -- Bad hook
+	local vargt = {...}
+	for _, v in ipairs(vargt) do
+		table.insert(CL_LINE_DATA, v)
+	end
 	timer.Simple(CL_TRACER_LIFETIME:GetFloat(), function()
-		for i = 1, 2 do
+		for i = 1, #vargt do
 			table.remove(CL_LINE_DATA, 1)
 		end
 	end)
 end
 
-local PREV_ANG, PREV_ST
-local function CalcViewModelRecovery(w, e, inv, rot, flip)
-	local ea = LocalPlayer():EyeAngles()
-	local ep = LocalPlayer():EyePos()
-	local flAng = 16*(CurTime()-w.m_flPrevState)/w.Recovery
-	local normal = Angle(w.AngleStrikeOffset*inv-ea[1]+PREV_ANG*inv, 180+ea[2], 0)
-	normal:RotateAroundAxis(ea:Forward(), rot)
-	local last_st = ep + normal:Forward() * (32 - flAng) + normal:Right() * 8 * inv * flip
-	local last_en = ep + normal:Forward() * (32 + w.Range) + normal:Right() * 8 * inv * flip
-	e:SetPos(last_st)
-	e:SetAngles((last_st-last_en):Angle():__add(Angle(0, 0, 90)))
-end
-local function CalcViewModelSlash(w, e, inv, rot, flip)
-	local ea = LocalPlayer():EyeAngles()
-	local ep = LocalPlayer():EyePos()
-	local flAng = (CurTime()-w.m_flPrevState)/w.Release
-	local normal = Angle(w.AngleStrikeOffset*inv-ea[1]+flAng*inv, 180+ea[2], 0)
-	normal:RotateAroundAxis(ea:Forward(), rot)
-	local st = ep + normal:Forward() * 32 + normal:Right() * 8 * inv * flip
-	local en = ep + normal:Forward() * (32 + w.Range) + normal:Right() * 8 * inv * flip
-	if DRAW_CL_TRACERS:GetBool() then
-		CL_TRACER_DRAW(st, en)
-	end
-	e:SetPos(st)
-	e:SetAngles((st-en):Angle():__add(Angle(0, 0, 90)))
-	PREV_ST = st
-	PREV_ANG = flAng
-end
-
-hook.Add("CalcViewModelView","CSENT_Anim", function() 
-	if LocalPlayer() and not LocalPlayer().CSENT and LocalPlayer():GetActiveWeapon().Model then --INIT CSENT, we could use GM:InitPostEntity() instead
-		local p = LocalPlayer()
-		p.CSENT = ClientsideModel(p:GetActiveWeapon().Model, RENDERGROUP_BOTH)
-		p.CSENT:SetRenderMode(RENDERMODE_TRANSCOLOR)
-		
-		p.m_iStamina = 100
-		p.m_iMaxStamina = 100
-		p.m_eTarget = nil
-	end
-
-	if IsValid(LocalPlayer():GetActiveWeapon()) and LocalPlayer().CSENT then -- 1P
-		local p = LocalPlayer()
-		local ea = p:EyeAngles()
-		local ep = p:EyePos()
-		local w = p:GetActiveWeapon()
-		local flip = w.m_iFlip
-		local CSENT = LocalPlayer().CSENT
-		--[[
-		if w.m_iState == STATE_IDLE then
-			CSENT:SetPos(ep+ea:Forward()*16+ea:Right()*8)
-			CSENT:SetAngles(Angle(ea[1]+90, ea[2], 0))
-		elseif w.m_iState == STATE_PARRY then
-			CSENT:SetPos(ep+ea:Forward()*16)
-			CSENT:SetAngles(Angle(ea[1], ea[2]-90, 0))
-		elseif w.m_iState == STATE_WINDUP then
-			local multi = w.m_bRiposting and w.RiposteMulti or 1
-			local flAng = (CurTime()-w.m_flPrevState)/(w.Windup*multi)
-			if w.m_iAnim == ANIM_STRIKE then
-				CSENT:SetPos(ep+ea:Forward()*(8-16*flAng)+ea:Right()*8*flip+ea:Up()*-8)
-				CSENT:SetAngles(Angle(ea[1], ea[2]+15*flip, 90))
-			elseif w.m_iAnim == ANIM_UPPERCUT then
-				CSENT:SetPos(ep+ea:Forward()*16+ea:Right()*(8*flip+16*flAng*flip)+ea:Up()*(16*flAng))
-				CSENT:SetAngles(Angle(ea[1]+45, ea[2], 0))
-			elseif w.m_iAnim == ANIM_UNDERCUT then
-				CSENT:SetPos(ep+ea:Forward()*(8-16*flAng)+ea:Right()*8*flip+ea:Up()*(-8-16*flAng))
-				CSENT:SetAngles(Angle(ea[1]-45, ea[2], 90))
-			elseif w.m_iAnim == ANIM_THRUST then
-				CSENT:SetPos(ep+ea:Forward()*(16-8*flAng)+ea:Up()*-8+ea:Right()*8*flip)
-				CSENT:SetAngles(Angle(ea[1]-180, ea[2], 0))
-			end
-		elseif w.m_iState == STATE_RECOVERY then
-			if w.m_iAnim == ANIM_NONE then --this is just state_idle... we need this because parry goes into recovery state
-				CSENT:SetPos(ep+ea:Forward()*16+ea:Right()*8)
-				CSENT:SetAngles(Angle(ea[1]+90, ea[2], 0))
-			elseif w.m_iAnim == ANIM_STRIKE then
-				CalcViewModelRecovery(w, CSENT, -1, 90*flip, flip)
-			elseif w.m_iAnim == ANIM_UPPERCUT then
-				CalcViewModelRecovery(w, CSENT, -1, 45*flip, flip)
-			elseif w.m_iAnim == ANIM_UNDERCUT then
-				CalcViewModelRecovery(w, CSENT, 1, -45*flip, flip)
-			elseif w.m_iAnim == ANIM_THRUST then
-				local flAng = 16*(CurTime()-w.m_flPrevState)/w.Recovery
-				local normal = Angle(Angle(ea[1] + math.cos(math.rad(270*PREV_ANG/90)) * 2, ea[2] - math.sin(math.rad(270*PREV_ANG/90)) * 2 * flip, 0)) --iAngleFinal by default is 90.
-				local last_st = ep + normal:Forward() * ( (32+6*(PREV_ANG/90))-flAng ) + normal:Up() * -8 + normal:Right() * 8 * flip
-				local last_en = ep + normal:Forward() * ((32 + w.Range)+6*(PREV_ANG/90)) + normal:Up() * -8 + normal:Right() * 8 * flip
-				CSENT:SetPos(last_st)
-				CSENT:SetAngles((last_st-last_en):Angle())
-			end
-		elseif w.m_iState == STATE_ATTACK then
-			if w.m_iAnim == ANIM_STRIKE then -- only attack anims can be here
-				CalcViewModelSlash(w, CSENT, -1, 90*flip, flip)
-			elseif w.m_iAnim == ANIM_UPPERCUT then
-				CalcViewModelSlash(w, CSENT, -1, 45*flip, flip)
-			elseif w.m_iAnim == ANIM_UNDERCUT then
-				CalcViewModelSlash(w, CSENT, 1, -45*flip, flip)
-			elseif w.m_iAnim == ANIM_THRUST then
-				local flAng = (CurTime()-w.m_flPrevState)/w.Release
-				local normal = Angle(Angle(ea[1] + math.sin(math.rad(270/(90/flAng)+90)) * 2, ea[2] - math.sin(math.rad(270/(90/flAng))) * 2 * flip, 0))
-				local st = ep + normal:Forward() * (32+12*(1/(90/flAng))) + normal:Up() * -8 + normal:Right() * 8 * flip
-				local en = ep + normal:Forward() * ((32 + w.Range)+12*(1/(90/flAng))) + normal:Up() * -8 + normal:Right() * 8 * flip
-				
-				if DRAW_CL_TRACERS:GetBool() then
-					CL_TRACER_DRAW(st, en)
-				end
-				CSENT:SetPos(st)
-				CSENT:SetAngles((st-en):Angle())
-				
-				PREV_ANG = flAng
-			end
-		end
-		]]
-		-- Sets target for vgui stuff
-		p.m_eTarget = (IsValid(p:GetEyeTrace().Entity) and p:GetEyeTrace().Entity:GetClass() == "player") and p:GetEyeTrace().Entity or nil
-	end
+-- Sets target for vgui stuff
+hook.Add("CalcViewModelView","ms_SetTarget", function() 
+	local p = LocalPlayer()
+	p.m_eTarget = (IsValid(p:GetEyeTrace().Entity) and p:GetEyeTrace().Entity:GetClass() == "player") and p:GetEyeTrace().Entity or nil
 end)
 
-hook.Add("PostPlayerDraw", "PmodelLua_Anim", function(p) 
-	if IsValid(p:GetActiveWeapon()) then
-		-- Can be faulty if playermodel is changed
-		if not p.m_iRHand then
-			p.m_flPrevAng = 0.0
-			p.m_iRForearm = p:LookupBone("ValveBiped.Bip01_R_Forearm")
-			p.m_iRUpperarm = p:LookupBone("ValveBiped.Bip01_R_UpperArm")
-			p.m_iRHand = p:LookupBone("ValveBiped.Bip01_R_Hand")
+
+do
+	local recovery_flAng, fpos, fang
+	hook.Add("CalcViewModelView","ms_VModelLuaAnim", function() 
+		if LocalPlayer() and not LocalPlayer().CSENT and LocalPlayer():GetActiveWeapon().Model then -- Init CSENT, we could use GM:InitPostEntity() instead though
+			local p = LocalPlayer()
+			p.CSENT = ClientsideModel(p:GetActiveWeapon().Model, RENDERGROUP_BOTH)
+			p.CSENT:SetRenderMode(RENDERMODE_TRANSCOLOR)
+			
+			p.m_iStamina = 100
+			p.m_iMaxStamina = 100
+			p.m_eTarget = nil
 		end
 
-		local w = p:GetActiveWeapon()
-		local ea = p:EyeAngles()
+		if IsValid(LocalPlayer():GetActiveWeapon()) and LocalPlayer().CSENT then -- 1P
+			local p = LocalPlayer()
+			local w = p:GetActiveWeapon()
+			local ea = p:EyeAngles()
+			local ep = p:EyePos()
+			local flip = w.m_iFlip
+			local P_CSENT = LocalPlayer().CSENT
 
-		--DT testing
-		--w.m_iState = w:GetDTInt(WEP_STATE)
-		--w.m_iAnim = w:GetDTInt(WEP_ANIM)
-		--w.m_bRiposting = w:GetDTBool(0)
-
-		-- Inverts poseparams and texture normals because pmodel gets enablematrix'd with a negative value
-		p.RenderOverride = function(self)
-			if w.m_iFlip ~= 1 then
-				render.CullMode(MATERIAL_CULLMODE_CW)
-				for _, v in ipairs({"aim_yaw", "move_y"}) do
-					local min, max = self:GetPoseParameterRange(self:LookupPoseParameter(v))
-					self:SetPoseParameter(v, min+max - math.Remap(self:GetPoseParameter(v), 0, 1, min, max))
+			-- Deprecated mess
+			if w.m_iState == STATE_IDLE then
+				fpos = ep+ea:Forward()*16+ea:Right()*8
+				fang = Angle(ea[1]+90, ea[2], 0)
+			elseif w.m_iState == STATE_PARRY then
+				fpos = ep+ea:Forward()*16
+				fang = Angle(ea[1], ea[2]-90, 0)
+			elseif w.m_iState == STATE_WINDUP then
+				local multi = w.m_bRiposting and w.RiposteMulti or 1
+				local flAng = (CurTime()-w.m_flPrevState)/(w.Windup*multi)
+				if w.m_iAnim == ANIM_STRIKE then
+					fpos = ep+ea:Forward()*(8-16*flAng)+ea:Right()*8*flip+ea:Up()*-8
+					fang = Angle(ea[1], ea[2]+15*flip, 90)
+				elseif w.m_iAnim == ANIM_UPPERCUT then
+					fpos = ep+ea:Forward()*16+ea:Right()*(8*flip+16*flAng*flip)+ea:Up()*(16*flAng)
+					fang = Angle(ea[1]+45, ea[2], 0)
+				elseif w.m_iAnim == ANIM_UNDERCUT then
+					fpos = ep+ea:Forward()*(8-16*flAng)+ea:Right()*8*flip+ea:Up()*(-8-16*flAng)
+					fang = Angle(ea[1]-45, ea[2], 90)
+				elseif w.m_iAnim == ANIM_THRUST then
+					fpos = ep+ea:Forward()*(16-8*flAng)+ea:Up()*-8+ea:Right()*8*flip
+					fang = Angle(ea[1]-180, ea[2], 0)
 				end
-				self:DrawModel()
-				render.CullMode(MATERIAL_CULLMODE_CCW) -- ?
-			else
-				self:DrawModel()
+			elseif w.m_iState == STATE_RECOVERY then
+				local flAng = 16*(CurTime()-w.m_flPrevState) / w.Recovery
+				local recovery_st, recovery_en
+				if w.m_iAnim ~= ANIM_THRUST and w.m_iAnim ~= ANIM_NONE then -- Slash attacks
+					local inv, rot = unpack(CALC_SLASH[w.m_iAnim]) -- Might be expensive?
+					local normal = Angle(w.AngleStrikeOffset*inv - ea[1] + recovery_flAng*inv, 180+ea[2], 0)
+					normal:RotateAroundAxis(ea:Forward(), rot*flip)
+					recovery_st = ep + normal:Forward() * (32 - flAng) + normal:Right() * 8*inv*flip
+					recovery_en = ep + normal:Forward() * (32 + w.Range) + normal:Right() * 8*inv*flip
+					fpos = recovery_st
+					fang = (recovery_st - recovery_en):Angle()
+				elseif w.m_iAnim == ANIM_THRUST then
+					local normal = Angle(Angle(ea[1] + math.cos(math.rad(270*recovery_flAng/90)) * 2, ea[2] - math.sin(math.rad(270*recovery_flAng/90)) * 2*flip, 0))
+					recovery_st = ep + normal:Forward() * ((32+6*(recovery_flAng/90))-flAng) + normal:Up() * -8 + normal:Right() * 8*flip
+					recovery_en = ep + normal:Forward() * ((32 + w.Range)+6*(recovery_flAng/90)) + normal:Up() * -8 + normal:Right() *8*flip
+					fpos = recovery_st
+					fang = (recovery_st - recovery_en):Angle()
+				elseif w.m_iAnim == ANIM_NONE then
+					fpos = ep+ea:Forward()*16+ea:Right()*8
+					fang = Angle(ea[1]+90, ea[2], 0)
+				end
+			elseif w.m_iState == STATE_ATTACK then
+				local flAng = (CurTime()-w.m_flPrevState) / w.Release
+				local st, en
+				if w.m_iAnim ~= ANIM_THRUST then
+					local inv, rot = unpack(CALC_SLASH[w.m_iAnim]) -- Might be expensive?
+					local normal = Angle(w.AngleStrikeOffset*inv - ea[1] + flAng*inv, 180+ea[2], 0)
+					normal:RotateAroundAxis(ea:Forward(), rot*flip)
+					st = ep + normal:Forward() * 32 + normal:Right() * 8*inv*flip
+					en = ep + normal:Forward() * (32 + w.Range) + normal:Right() * 8*inv*flip
+				else
+					local normal = Angle(Angle(ea[1] + math.sin(math.rad(270/(90/flAng)+90)) * 2, ea[2] - math.sin(math.rad(270/(90/flAng))) * 2*flip, 0))
+					st = ep + normal:Forward() * (32+12*(1/(90/flAng))) + normal:Up() * -8 + normal:Right() * 8 * flip
+					en = ep + normal:Forward() * ((32 + w.Range)+12*(1/(90/flAng))) + normal:Up() * -8 + normal:Right() * 8 * flip
+				end
+				if CL_DRAW_TRACERS:GetBool() then
+					CL_TRACER_DRAW(st, en)
+				end
+				recovery_flAng = flAng -- Both
+				fpos = st
+				fang = (st - en):Angle()
+			end
+			if ENABLE_CSENT:GetBool() then -- Should also affect everything but state_attack, this is temporary
+				P_CSENT:SetPos(fpos)
+				P_CSENT:SetAngles(fang)
 			end
 		end
+	end)
+end
 
-		if w.m_iState == STATE_IDLE then
-			if not p:GetManipulateBoneAngles(p.m_iRHand):__eq(Angle()) then -- rhand is always changed
-				local flFraction = 1 - math.ease.OutCubic(math.Clamp((CurTime()-w.m_flPrevState)/w.Recovery, 0, 1))
+do
+	-- [1] - rupperarm, [2] - rforearm, [3] - rhand
+	local kframe = {
+		[1] = {
+
+		}
+	}
+	hook.Add("PostPlayerDraw", "ms_PmodelLuaAnim", function(p) 
+		if IsValid(p:GetActiveWeapon()) then
+			-- Can be faulty if playermodel is changed
+			if not p.m_iRHand then
+				p.m_flPrevAng = 0.0
+				p.m_iRUpperarm = p:LookupBone("ValveBiped.Bip01_R_UpperArm")
+				p.m_iRForearm = p:LookupBone("ValveBiped.Bip01_R_Forearm")
+				p.m_iRHand = p:LookupBone("ValveBiped.Bip01_R_Hand")
+			end
+
+			local w = p:GetActiveWeapon()
+			local ea = p:EyeAngles()
+
+			--DT testing
+			--w.m_iState = w:GetDTInt(WEP_STATE)
+			--w.m_iAnim = w:GetDTInt(WEP_ANIM)
+			--w.m_bRiposting = w:GetDTBool(0)
+
+			-- Inverts poseparams and texture normals because pmodel gets enablematrix'd with a negative value
+			p.RenderOverride = function(self)
+				if w.m_iFlip ~= 1 then
+					render.CullMode(MATERIAL_CULLMODE_CW)
+					for _, v in ipairs({"aim_yaw", "move_y"}) do
+						local min, max = self:GetPoseParameterRange(self:LookupPoseParameter(v))
+						self:SetPoseParameter(v, min+max - math.Remap(self:GetPoseParameter(v), 0, 1, min, max))
+					end
+					self:DrawModel()
+					render.CullMode(MATERIAL_CULLMODE_CCW)
+				else
+					self:DrawModel()
+				end
+			end
+
+			-- Soon to be deprecated too
+			if w.m_iState == STATE_IDLE then
+				if not p:GetManipulateBoneAngles(p.m_iRHand):__eq(Angle()) then -- rhand is always changed
+					local flFraction = 1 - math.ease.OutCubic(math.Clamp((CurTime()-w.m_flPrevState)/w.Recovery, 0, 1))
+					p:ManipulateBoneAngles(p.m_iRHand, p.m_aRHand:__mul(flFraction))
+					p:ManipulateBoneAngles(p.m_iRForearm, p.m_aRForearm:__mul(flFraction))
+					p:ManipulateBoneAngles(p.m_iRUpperarm, p.m_aRUpperarm:__mul(flFraction))
+				end
+			elseif w.m_iState == STATE_PARRY then -- Do nothing, we change aimlayer instead
+			elseif w.m_iState == STATE_WINDUP then -- Only attack anims can be here
+					local multi = w.m_bRiposting and w.RiposteMulti or 1
+					local flAng = math.Clamp(90/((w.Windup*multi)/(CurTime()-w.m_flPrevState)), 0, 90)
+				if w.m_iAnim == ANIM_STRIKE then
+					p:ManipulateBoneAngles(p.m_iRHand, Angle(-flAng, 0, 0))
+					p:ManipulateBoneAngles(p.m_iRForearm, Angle(0, flAng, 0))
+					p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(0, flAng, 0))
+				elseif w.m_iAnim == ANIM_UPPERCUT then
+					p:ManipulateBoneAngles(p.m_iRHand, Angle(0, -flAng, flAng))
+					p:ManipulateBoneAngles(p.m_iRForearm, Angle(0, flAng, 0))
+					p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(flAng, 0, 0))
+				elseif w.m_iAnim == ANIM_UNDERCUT then
+					p:ManipulateBoneAngles(p.m_iRHand, Angle(0, -flAng, flAng))
+					p:ManipulateBoneAngles(p.m_iRForearm, Angle(0, flAng, 0))
+				elseif w.m_iAnim == ANIM_THRUST then
+					p:ManipulateBoneAngles(p.m_iRHand, Angle(0, 0, -flAng/2))
+					p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(0, flAng, 0))
+				end
+			elseif w.m_iState == STATE_RECOVERY then
+				local flFraction = 1 - math.ease.InCubic(math.Clamp((CurTime()-w.m_flPrevState)/w.Recovery, 0, 1))
 				p:ManipulateBoneAngles(p.m_iRHand, p.m_aRHand:__mul(flFraction))
 				p:ManipulateBoneAngles(p.m_iRForearm, p.m_aRForearm:__mul(flFraction))
 				p:ManipulateBoneAngles(p.m_iRUpperarm, p.m_aRUpperarm:__mul(flFraction))
+			elseif w.m_iState == STATE_ATTACK then
+				local flAng = 0.0
+				if w.m_iAnim == ANIM_STRIKE then -- Only attack anims can be here
+					flAng = math.Clamp((CurTime()-w.m_flPrevState)/w.Release, 0, w.AngleStrike)
+					p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(60*math.sin(math.rad(flAng*(4/3))), 90-flAng*(4/3)+30), flAng*0.4)
+				elseif w.m_iAnim == ANIM_UPPERCUT then
+					flAng = math.Clamp((CurTime()-w.m_flPrevState)/w.Release, 0, w.AngleStrike)
+					p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(90+flAng, 90-30*flAng/w.AngleStrike, 120))
+				elseif w.m_iAnim == ANIM_UNDERCUT then
+					flAng = math.Clamp((CurTime()-w.m_flPrevState)/w.Release, 0, w.AngleStrike)
+					p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(-30*flAng/w.AngleStrike, -flAng, 0))
+				elseif w.m_iAnim == ANIM_THRUST then
+					flAng = CurTime()-w.m_flPrevState
+					local pace_90 = math.Clamp(flAng/w.Release, 0, 90) -- a thrust will always have only 90 iterations(?)
+					p:ManipulateBoneAngles(p.m_iRHand,Angle(-100*pace_90/90, -15*pace_90/90, -90+pace_90))
+					p:ManipulateBoneAngles(p.m_iRForearm,Angle(0, pace_90, 0))
+					p:ManipulateBoneAngles(p.m_iRUpperarm,Angle(0, 90-180*pace_90/90, 0))
+				end
+				p.m_flPrevAng = flAng
 			end
-		elseif w.m_iState == STATE_PARRY then -- Do nothing, we change aimlayer instead
-		elseif w.m_iState == STATE_WINDUP then -- Only attack anims can be here
-				local multi = w.m_bRiposting and w.RiposteMulti or 1
-				local flAng = math.Clamp(90/((w.Windup*multi)/(CurTime()-w.m_flPrevState)), 0, 90)
-			if w.m_iAnim == ANIM_STRIKE then
-				p:ManipulateBoneAngles(p.m_iRHand, Angle(-flAng, 0, 0))
-				p:ManipulateBoneAngles(p.m_iRForearm, Angle(0, flAng, 0))
-				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(0, flAng, 0))
-			elseif w.m_iAnim == ANIM_UPPERCUT then
-				p:ManipulateBoneAngles(p.m_iRHand, Angle(0, -flAng, flAng))
-				p:ManipulateBoneAngles(p.m_iRForearm, Angle(0, flAng, 0))
-				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(flAng, 0, 0))
-			elseif w.m_iAnim == ANIM_UNDERCUT then
-				p:ManipulateBoneAngles(p.m_iRHand, Angle(0, -flAng, flAng))
-				p:ManipulateBoneAngles(p.m_iRForearm, Angle(0, flAng, 0))
-			elseif w.m_iAnim == ANIM_THRUST then
-				p:ManipulateBoneAngles(p.m_iRHand, Angle(0, 0, -flAng/2))
-				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(0, flAng, 0))
-			end
-		elseif w.m_iState == STATE_RECOVERY then
-			local flFraction = 1 - math.ease.InCubic(math.Clamp((CurTime()-w.m_flPrevState)/w.Recovery, 0, 1))
-			p:ManipulateBoneAngles(p.m_iRHand, p.m_aRHand:__mul(flFraction))
-			p:ManipulateBoneAngles(p.m_iRForearm, p.m_aRForearm:__mul(flFraction))
-			p:ManipulateBoneAngles(p.m_iRUpperarm, p.m_aRUpperarm:__mul(flFraction))
-		elseif w.m_iState == STATE_ATTACK then
-			local flAng = 0.0
-			if w.m_iAnim == ANIM_STRIKE then -- Only attack anims can be here
-				flAng = math.Clamp((CurTime()-w.m_flPrevState)/w.Release, 0, w.AngleStrike)
-				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(60*math.sin(math.rad(flAng*(4/3))), 90-flAng*(4/3)+30), flAng*0.4)
-			elseif w.m_iAnim == ANIM_UPPERCUT then
-				flAng = math.Clamp((CurTime()-w.m_flPrevState)/w.Release, 0, w.AngleStrike)
-				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(90+flAng, 90-30*flAng/w.AngleStrike, 120))
-				--[[
-					0,-90,90; 0,0,0
-					0,90,0; 0,0,0
-					90,0,0; 135;90;120
-				]]
-			elseif w.m_iAnim == ANIM_UNDERCUT then
-				flAng = math.Clamp((CurTime()-w.m_flPrevState)/w.Release, 0, w.AngleStrike)
-				p:ManipulateBoneAngles(p.m_iRUpperarm, Angle(-30*flAng/w.AngleStrike, -flAng, 0))
-				--[[
-					0,-90,90; 0,0,0
-					0,90,0; 0,0,0
-					0,0,0; -15,-90,0; -30;-135;0; -30;-235;0
-				]]
-			elseif w.m_iAnim == ANIM_THRUST then
-				--[[
-					0,0,-90; -100,-15,0
-					0,0,0; 0,90,0
-					0,90,0; 0,-90,0
-				]]
-				flAng = CurTime()-w.m_flPrevState
-				local pace_90 = math.Clamp(flAng/w.Release, 0, 90) -- a thrust will always have only 90 iterations(?)
-				p:ManipulateBoneAngles(p.m_iRHand,Angle(-100*pace_90/90, -15*pace_90/90, -90+pace_90))
-				p:ManipulateBoneAngles(p.m_iRForearm,Angle(0, pace_90, 0))
-				p:ManipulateBoneAngles(p.m_iRUpperarm,Angle(0, 90-180*pace_90/90, 0))
-			end
-			p.m_flPrevAng = flAng
 		end
-	end
-end)
+	end)
+end
 
 function GM:BuildUserInterface()
 	self.ProgressBars = vgui.Create("ProgressBars")
@@ -420,7 +419,7 @@ do
 		[2] = Color(0, 255, 255),
 		[3] = Color(0, 255, 0)
 	}
-	hook.Add("PostDrawOpaqueRenderables", "Debug_Drawtrace", function()
+	hook.Add("PostDrawOpaqueRenderables", "ms_DBG_TraceDraw", function()
 		for i = 1, #SV_LINE_DATA, 4 do
 			render.DrawLine(SV_LINE_DATA[i], SV_LINE_DATA[i+1], ctable[SV_LINE_DATA[i+2]])
 			if SV_LINE_DATA[i+4] and SV_LINE_DATA[i+7] == SV_LINE_DATA[i+3] then
@@ -432,26 +431,6 @@ do
 		end
 	end)
 end
---[[
--- Immersive first person for Calcview hook (its bad)
-	LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Head1"),Vector(0,0,0))
-	LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Neck1"),Vector(0,0,0))
-	LocalPlayer():ManipulateBoneScale(LocalPlayer():LookupBone("ValveBiped.Bip01_Spine4"),Vector(0,0,0))
-	CAM_DATA.origin = LocalPlayer():GetBonePosition(6)+ LocalPlayer():EyeAngles():Up()*4 + LocalPlayer():EyeAngles():Forward()*-8--nil
-	LocalPlayer().CSENT:SetColor(Color(255,255,255,0))
-]]
-hook.Add("CalcView", "SwitchPerspective", function()
-	if LocalPlayer().CSENT then
-		if CAM_DATA.drawviewer then
-			CAM_DATA.origin = LocalPlayer():GetPos() + LocalPlayer():EyeAngles():Forward()*-32 + Vector(0, 0, 64)
-			LocalPlayer().CSENT:SetColor(Color(255, 255, 255, 0))
-		else
-			CAM_DATA.origin = nil
-			LocalPlayer().CSENT:SetColor(Color(255, 255, 255, 255))
-		end
-		return CAM_DATA
-	end
-end)
 
 do
 	local forbidden_huds = {
@@ -462,12 +441,12 @@ do
 		["CHudWeaponSelection"] = true,
 		["CHudGMod"] = true -- Disables hudpaint hook
 	}
-	hook.Add("HUDShouldDraw", "HideHUD", function(name)
+	hook.Add("HUDShouldDraw", "ms_HideHUD", function(name)
 		return forbidden_huds[name] and false
 	end)
 end
 
-hook.Add("CreateMove", "Turncap", function(cmd)
+hook.Add("CreateMove", "ms_Turncap", function(cmd)
 	local w = LocalPlayer():GetActiveWeapon()
 	local viewangles = cmd:GetViewAngles()
 	
@@ -482,8 +461,6 @@ hook.Add("CreateMove", "Turncap", function(cmd)
 		viewangles[1] = math.NormalizeAngle(originalangles[1] + math.Clamp(diffpitch, mindiff, maxdiff))
 		w.viewangles = viewangles
 
-		cmd:SetViewAngles(Angle(math.Clamp(viewangles[1], -60, 60), viewangles[2], viewangles[3]))
-		else
 		cmd:SetViewAngles(Angle(math.Clamp(viewangles[1], -60, 60), viewangles[2], viewangles[3]))
 	end
 end)

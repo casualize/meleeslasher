@@ -1,4 +1,4 @@
---CACHED GLOBALS
+-- CACHED GLOBALS
 local math_min = math.min
 local curtime = CurTime
 
@@ -28,7 +28,7 @@ local fw, sd, pt, vel, mul
 function GM:Move(pl, move)
 	fw = M_GetForwardSpeed(move)
 	if fw > 0 then 
-		P_SetRunSpeed(pl, 140)
+		P_SetRunSpeed(pl, GAME_MVSPEED * 1.4)
 		--if SERVER then self:StaminaUpdate(pl,nil,true) end
 		if P_GetActiveWeapon(pl).m_iState == STATE_ATTACK then
 			P_SetRunSpeed(pl, P_GetWalkSpeed(pl))
