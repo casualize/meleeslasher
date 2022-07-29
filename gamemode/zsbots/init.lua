@@ -150,15 +150,15 @@ function ZSBOTS.StartCommand(pl, cmd)
 				if (targetstate == STATE_IDLE or targetstate == STATE_RECOVERY)  then
 					if wep.m_iState == STATE_IDLE then
 						if pl.m_flPrevFeint + 0.4 <= CurTime() then
-							pl.m_aAttack = Angle(math.random(-30,30),math.random(-30,30),0)
-							wep:m_fWindup(math.random(2,5), false, math.random() >= 0.5)
+							pl.m_aAttack = Angle() -- Angle(math.random(-30,30),math.random(-30,30),0)
+							wep:m_fWindup(math.random(2, 5), false, math.random() >= 0.5)
 						end
 					end
 					if wep.m_iState == STATE_WINDUP then
 						viewang = (destination - mypos):Angle():__add(pl.m_aAttack)
 						if pl.m_flDebugNext + 0.1 <= CurTime() then
 							pl.m_flDebugNext = CurTime()
-							pl.m_aAttack = Angle(math.random(-30,30),math.random(-30,30),0)
+							pl.m_aAttack = Angle() -- Angle(math.random(-30,30),math.random(-30,30),0)
 						end
 						if pl.m_flNextFeint <= CurTime() then
 							pl.m_flNextFeint = CurTime() + math.Rand(0.5,4)
@@ -177,7 +177,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 					cmd:SetForwardMove(-10000)
 				end
 				if wep.m_iState == STATE_PARRY then
-					wep:m_fWindup(math.random(2,5), false, math.random() >= 0.5)
+					wep:m_fWindup(math.random(2, 5), false, math.random() >= 0.5)
 				elseif wep.m_iState == STATE_ATTACK then
 					buttons = bit.bor(buttons, IN_FORWARD)
 					cmd:SetForwardMove(10000)
@@ -378,16 +378,12 @@ function ZSBOTS.DoPlayerDeath(p, att, info)
 	end
 end
 
-function ZSBOTS:AddOrRemoveHooks()
+do
 	local ename = {"StartCommand", "Think", "PlayerTick", "DoPlayerDeath"}
-	local efunc = {self.StartCommand, self.Think, self.PlayerTick, self.DoPlayerDeath} -- Must be in order
-	if #Bots == 0 then
+	function ZSBOTS:AddOrRemoveHooks()
+		local toggle = #Bots ~= 0 and "Add" or "Remove"
 		for _, v in ipairs(ename) do
-			hook.Remove(v, "zsbots")
-		end
-	else
-		for k, v in ipairs(ename) do
-			hook.Add(v, "zsbots", efunc[k])
+			hook[toggle](v, "ZSBOTS_" .. v, self[v]) -- "Remove" method doesn't parse remaining args anyway
 		end
 	end
 end
@@ -567,30 +563,16 @@ concommand.Add("createnavmesh", function(sender)
 	end
 end)
 
-local ENT = {}
-
-ENT.Type = "nextbot"
-ENT.Base = "base_nextbot"
-
-ENT.IsZSBot = true
-
+-- Creating fields within a table avoids rehashing (although definitely not a performance boost, just a practise)
+local ENT = {
+	Type = "nextbot",
+	Base = "base_nextbot",
+	IsZsBot = true
+}
+-- Reminder, can't create self-references inside a table due to the object not existing yet, therefore this method should be defined only after the table's construct
 function ENT:Initialize()
+	self:AddEFlags(EFL_SERVER_ONLY + EFL_FORCE_CHECK_TRANSMIT)
 	self:SetSolid(SOLID_NONE)
-end
-
-function ENT:OnKilled(dmginfo)
-end
-
-function ENT:UpdateTransmitState()
-	return TRANSMIT_NONE
-end
-
-function ENT:ShouldNotCollide(ent)
-	return ent.IsZSBot
-end
-
-function ENT:RunBehaviour()
-	-- dummy, does nothing
 end
 
 scripted_ents.Register(ENT, "zsbotnb")

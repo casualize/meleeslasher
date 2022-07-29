@@ -5,6 +5,8 @@ AddCSLuaFile("sh_animations.lua")
 AddCSLuaFile("player_movement/shared.lua")
 AddCSLuaFile("player_movement/cl_init.lua")
 AddCSLuaFile("vgui/progressbars.lua")
+AddCSLuaFile("vgui/emotepanel.lua")
+AddCSLuaFile("vgui/damageindicator.lua")
 
 include("shared.lua")
 include("sh_globals.lua")
@@ -34,6 +36,7 @@ function GM:AddNetworkStrings()
 	util.AddNetworkString("ms_ea_update")
 	util.AddNetworkString("ms_bind_attack")
 	util.AddNetworkString("ms_bind_other")
+	util.AddNetworkString("ms_emote") -- Used both server and client
 end
 
 function GM:Initialize()
@@ -50,25 +53,24 @@ end
 --p:SetModel("models/player/aoc_"..player_mdl[math.random(#player_mdl)]..".mdl")
 
 function GM:PlayerSpawn(p)
-	local strModel
+	local strModel = "models/player/breen.mdl"
+	--[[
 	local strInfo = p:GetInfo("cl_playermodel")
-	for k, v in pairs(player_manager.AllValidModels()) do
+	for _, v in pairs(player_manager.AllValidModels()) do
 		if strInfo == valid then
 			strModel = strInfo
 		end
 	end
+	]]
 	strModel = not strModel and table.Random(player_manager.AllValidModels()) or strModel
 	p:SetModel(strModel)
 	p:SetPlayerColor(Vector(math.Rand(0, 0.5), math.Rand(0, 0.5), math.Rand(0, 0.5)))
 	
 	p:Give("weapon_ms_base")
-	p:SetFOV(120)
 	p:SetCanZoom(false)
 	
 	p:SetWalkSpeed(GAME_MVSPEED)
 	p:SetRunSpeed(GAME_MVSPEED)
-	
-	--VARS--
 	
 	p.m_flPrevStamina = 0.0
 	p.m_iStamina = 100000
@@ -129,13 +131,23 @@ net.Receive("ms_bind_other", function(_, p)
 		end
 	end
 end)
+net.Receive("ms_emote", function(_, p)
+	local e = net.ReadUInt(8)
+	if IsValid(p:GetActiveWeapon()) then
+		p:AddVCDSequenceToGestureSlot(0, p:LookupSequence(DEF_EMOTE[e]), 0, true) -- Synchronize hitboxes with gestures
+		net.Start("ms_emote")
+			net.WriteUInt(p:UserID(), 16)
+			net.WriteUInt(e, 8)
+		net.Broadcast()
+	end
+end)
 
 function GM:EntityTakeDamage(ent, info)
 	if ent:GetClass() == "player" then
 		local strid = info:GetDamage() >= 10 and math.random(8,9) or math.random(1,3)
 		ent:EmitSound("vo/npc/male01/pain0" .. strid .. ".wav", 75, 100, 1)
 
-		GAMEMODE:StaminaUpdate(ent,nil,true)
+		GAMEMODE:StaminaUpdate(ent, nil, true)
 	end
 end
 

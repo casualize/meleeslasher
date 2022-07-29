@@ -62,7 +62,7 @@ SWEP.m_soundRelease = {"vo/npc/male01/pain04", "vo/npc/male01/pain03"} -- might 
 	BUG: Being outside the map boundaries will make your ActiveWeapon nil
 	BUG: Should update bone vars upon new pmodel, now it's using render hook...
 	BUG: Dying during a flip state causes it to last even during new spawn
-	BIG: AnimRestartGestures
+	BIG: Emote system, AnimRestartGestures, overwrite *_anm.mdl
 	TODO: Merge DamageSimple and Flinch?
 	TODO: Bandaid fix to IK (for enablematrix issue): manipulate left hand's bones to the right one when flipped attack
 	TODO: Proper integration for lag comp

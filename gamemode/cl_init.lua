@@ -4,6 +4,8 @@ include("sh_animations.lua")
 include("player_movement/shared.lua")
 include("player_movement/cl_init.lua")
 include("vgui/progressbars.lua")
+include("vgui/emotepanel.lua")
+include("vgui/damageindicator.lua")
 
 ATTACK_BIND = {
 	[ANIM_STRIKE]= "+attack",
@@ -13,6 +15,9 @@ ATTACK_BIND = {
 }
 OTHER_BIND = {
 	[1] = "+menu"
+}
+CLIENT_BIND = {
+	[1] = "gmod_undo"
 }
 
 ENABLE_CSENT = CreateConVar("ms_cl_enable_csent", "0", true, false)
@@ -59,10 +64,10 @@ net.Receive("ms_state_update", function()
 		local w = Player(p):GetActiveWeapon()
 		w.m_flPrevState = CurTime()
 		w.m_iState		= s
-		w.m_iFlip		= f and -1 or 1 -- Converts from bool to number for arithmetic purpose
-		w.m_iAnim		= a ~= ANIM_SKIP and a or w.m_iAnim -- ANIM_SKIP is now unused
+		w.m_iAnim		= a
 		w.m_bRiposting	= r
-		AnimInit(Player(p), s, a, f)
+		w.m_iFlip		= f and -1 or 1 -- Converts from bool to number for arithmetic purpose
+		AnimInit(Player(p))
 	end
 end)
 
@@ -71,71 +76,157 @@ net.Receive("ms_inflict_player", function()
 	Player(p):AnimRestartGesture(GESTURE_SLOT_FLINCH, ACT_FLINCH_PHYSICS, true)
 end)
 
+net.Receive("ms_emote", function()
+	local p = net.ReadUInt(16) -- UserID
+	local e = net.ReadUInt(8)
+	Player(p):AddVCDSequenceToGestureSlot(0, Player(p):LookupSequence(DEF_EMOTE[e]), 0, true)
+end)
+
 net.Receive("ms_ea_update", function()
 	LocalPlayer():GetActiveWeapon().viewangles = LocalPlayer():EyeAngles()
 end)
 
+-- ?
 function GM:InitPostEntity()
 	LocalPlayer().m_flJumpStartTime = 0
 end
 
-function AnimReset(p)
-	if not IsValid(p) then return end
-	for b = 0, p:GetBoneCount() do
-		p:ManipulateBoneAngles(b, Angle(0, 0, 0))
-	end
-end
-
-function AnimInit(p, s, a, f)
-	p.m_aRHand = p:GetManipulateBoneAngles(p.m_iRHand)
-	p.m_aRForearm = p:GetManipulateBoneAngles(p.m_iRForearm)
-	p.m_aRUpperarm = p:GetManipulateBoneAngles(p.m_iRUpperarm)
-	if s == STATE_PARRY then
-		AnimReset(p)
-	end
-	if f then
-		p:EnableMatrix ("RenderMultiply", Matrix({{1, 0, 0, 0},{0, -1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}))
-	else
-		p:DisableMatrix("RenderMultiply")
-	end
-end
-
-local CAM_DATA = {}
-CAM_DATA.drawviewer = false
-function GM:PlayerBindPress(p, bind)
-	for k, v in pairs(ATTACK_BIND) do -- Not sequential
-		if string.find(bind, v) then
-			net.Start("ms_bind_attack")
-				net.WriteUInt(k, 3)
-				net.WriteBool(p:GetActiveWeapon().m_bFlip)
-			net.SendToServer()
+do
+	-- Define the custom gestures set from *_anm.mdl, the mdl had to be overriden to save the hassle (can't just do another animation mdl without $includemodel'ing every pmdl eitherway)
+	local defseq = {
+		[STATE_IDLE] = {nil},
+		[STATE_PARRY] = {"ms_parry"},
+		[STATE_WINDUP] = {
+			[ANIM_NONE] = nil,
+			[ANIM_STRIKE] = "ms_windup_strike",
+			[ANIM_UPPERCUT] = "ms_windup_uppercut",
+			[ANIM_UNDERCUT] = "ms_windup_undercut",
+			[ANIM_THRUST] = "ms_windup_thrust"
+		},
+		-- STATE_RECOVERY will not have anims for now, also can't set its anims to ANIM_NONE due to it still being used in pmodel lua anims
+		[STATE_RECOVERY] = {nil},
+		[STATE_ATTACK] = {
+			[ANIM_NONE] = nil,
+			[ANIM_STRIKE] = "ms_attack_strike",
+			[ANIM_UPPERCUT] = "ms_attack_uppercut",
+			[ANIM_UNDERCUT] = "ms_attack_undercut",
+			[ANIM_THRUST] = "ms_attack_thrust"
+		}
+	}
+	function AnimInit(p)
+		p.m_aRHand = Angle() -- p:GetManipulateBoneAngles(p.m_iRHand)
+		p.m_aRForearm = Angle() -- p:GetManipulateBoneAngles(p.m_iRForearm)
+		p.m_aRUpperarm = Angle() -- p:GetManipulateBoneAngles(p.m_iRUpperarm)
+		local w = p:GetActiveWeapon()
+		local cycle = (w.m_bRiposting and w.m_iState == STATE_WINDUP) and 1 - w.RiposteMulti or 0 -- No clues on how to setplaybackrate for gestures.
+		if defseq[w.m_iState][w.m_iAnim] ~= nil then
+			p:AddVCDSequenceToGestureSlot(math.random(0, 6), p:LookupSequence(defseq[w.m_iState][w.m_iAnim]), cycle, true)
 		end
-	end
-	for k, v in ipairs(OTHER_BIND) do
-		if bind == v then --string.find(bind,v) then -- This messes with +menu and +menu_context
-			net.Start("ms_bind_other")
-				net.WriteUInt(k, 3)
-			net.SendToServer()
-		end
-	end
-	if string.find(bind,"+menu_context") then
-		-- (expression and {false} or {true})[1] -- Reminder for if we want flipped result
-		CAM_DATA.drawviewer = not CAM_DATA.drawviewer
-	end
-end
-
-hook.Add("CalcView", "SwitchPerspective", function()
-	if LocalPlayer().CSENT then
-		if CAM_DATA.drawviewer then
-			CAM_DATA.origin = LocalPlayer():GetPos() + LocalPlayer():EyeAngles():Forward()*-32 + Vector(0, 0, 64)
-			LocalPlayer().CSENT:SetColor(Color(255, 255, 255, 0))
+		if w.m_iFlip ~= 1 then
+			p:EnableMatrix ("RenderMultiply", Matrix({{1, 0, 0, 0},{0, -1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}))
 		else
-			CAM_DATA.origin = nil
-			LocalPlayer().CSENT:SetColor(Color(255, 255, 255, 255))
+			p:DisableMatrix("RenderMultiply")
 		end
-		return CAM_DATA
 	end
-end)
+end
+do
+	
+end
+
+	function EmoteInit(p)
+
+	end
+do
+	local camt = {
+		origin = nil,
+		angles = nil,
+		fov = 120,
+		drawviewer = false
+	}
+	-- Must be in order
+	local tglfieldt = {
+		{
+			"gmod_undo",
+			"+menu_context"
+		},
+		{
+			true, -- LocalPlayer()
+			true -- camt 
+		},
+		{
+			"m_bEmotePanelActive",
+			"drawviewer"
+		}
+	}
+	-- This hook triggers anytime a bind is pressed (no hold), just FYI
+	function GM:PlayerBindPress(p, bind)
+
+		-- Reset the fields, apparently doesn't set them in time :( Should put this into different hook maybe
+		tglfieldt[2][1] = LocalPlayer()
+		tglfieldt[2][2] = camt
+
+		-- Binds that get sent to server
+		for k, v in pairs(ATTACK_BIND) do -- Not sequential
+			if string.find(bind, v) then
+				net.Start("ms_bind_attack")
+					net.WriteUInt(k, 3)
+					net.WriteBool(p:GetActiveWeapon().m_bFlip)
+				net.SendToServer()
+			end
+		end
+		for k, v in ipairs(OTHER_BIND) do
+			if bind == v then -- string.find(bind,v) then -- This messes with +menu and +menu_context
+				net.Start("ms_bind_other")
+					net.WriteUInt(k, 3)
+				net.SendToServer()
+			end
+		end
+		-- Binds that toggle fields in client
+		for k, v in ipairs(tglfieldt[1]) do
+			if bind == v then
+				tglfieldt[2][k][tglfieldt[3][k]] = not tglfieldt[2][k][tglfieldt[3][k]]
+			end
+		end
+		-- Emote panel, "slot0" will index further, base is 9
+		if p.m_bEmotePanelActive then
+			if bind == "slot0" then
+				-- Check for the first field in base, if nil then return to 0
+				p.m_iEmotePanelIndices = DEF_EMOTE[p.m_iEmotePanelIndices * 9 + 10] ~= nil and p.m_iEmotePanelIndices + 1 or 0
+			end
+			for i = 1, 9 do
+				if bind == ("slot" .. i) then
+					local idx = p.m_iEmotePanelIndices * 9 + i
+					if DEF_EMOTE[idx] ~= nil then
+						net.Start("ms_emote")
+							net.WriteUInt(idx ,8)
+						net.SendToServer()
+					else
+						print(idx, "doesn't exist!")
+					end
+					p.m_iEmotePanelIndices = 0
+					p.m_bEmotePanelActive = false
+					break
+				end
+			end
+		end
+	end
+
+	hook.Add("CalcView", "SwitchPerspective", function(_p, _v, a)
+		if LocalPlayer().CSENT then
+			if camt.drawviewer then
+				camt.origin = LocalPlayer():GetPos() + LocalPlayer():EyeAngles():Forward()*-32 + Vector(0, 0, 64)
+				--camt.origin = LocalPlayer():GetPos() + LocalPlayer():EyeAngles():Forward()*64 + Vector(0, 0, 64)
+				--camt.angles = a:__sub(Angle(180, 0, 180))
+				LocalPlayer().CSENT:SetColor(Color(255, 255, 255, 0))
+			else
+				camt.origin = nil
+				camt.angles = nil
+				LocalPlayer().CSENT:SetColor(Color(255, 255, 255, 255))
+			end
+			return camt
+		end
+	end)
+end
 
 concommand.Add("ms_help", function() 
 	print
@@ -223,6 +314,8 @@ do
 			p.CSENT = ClientsideModel(p:GetActiveWeapon().Model, RENDERGROUP_BOTH)
 			p.CSENT:SetRenderMode(RENDERMODE_TRANSCOLOR)
 			
+			p.m_iEmotePanelIndices = 0
+			p.m_bEmotePanelActive = false
 			p.m_iStamina = 100
 			p.m_iMaxStamina = 100
 			p.m_eTarget = nil
@@ -310,12 +403,6 @@ do
 end
 
 do
-	-- [1] - rupperarm, [2] - rforearm, [3] - rhand
-	local kframe = {
-		[1] = {
-
-		}
-	}
 	hook.Add("PostPlayerDraw", "ms_PmodelLuaAnim", function(p) 
 		if IsValid(p:GetActiveWeapon()) then
 			-- Can be faulty if playermodel is changed
@@ -350,6 +437,7 @@ do
 			end
 
 			-- Soon to be deprecated too
+			--[[
 			if w.m_iState == STATE_IDLE then
 				if not p:GetManipulateBoneAngles(p.m_iRHand):__eq(Angle()) then -- rhand is always changed
 					local flFraction = 1 - math.ease.OutCubic(math.Clamp((CurTime()-w.m_flPrevState)/w.Recovery, 0, 1))
@@ -401,12 +489,15 @@ do
 				end
 				p.m_flPrevAng = flAng
 			end
+			]]
 		end
 	end)
 end
 
 function GM:BuildUserInterface()
 	self.ProgressBars = vgui.Create("ProgressBars")
+	self.EmotePanel = vgui.Create("EmotePanel")
+	self.DamageIndicator = vgui.Create("DamageIndicator")
 end
 
 function GM:Initialize()
@@ -451,16 +542,17 @@ hook.Add("CreateMove", "ms_Turncap", function(cmd)
 	local viewangles = cmd:GetViewAngles()
 	
 	if IsValid(w) and w.viewangles and w.m_iState ~= STATE_RECOVERY and w.m_iState ~= STATE_IDLE then
-		local maxdiff = FrameTime() * w.TurnCap
-		local mindiff = -maxdiff
-		local originalangles = w.viewangles
-		local diffyaw = math.AngleDifference(viewangles[2], originalangles[2])
-		local diffpitch = math.AngleDifference(viewangles[1], originalangles[1])
-		
-		viewangles[2] = math.NormalizeAngle(originalangles[2] + math.Clamp(diffyaw, mindiff, maxdiff))
-		viewangles[1] = math.NormalizeAngle(originalangles[1] + math.Clamp(diffpitch, mindiff, maxdiff))
+		do
+			local maxdiff = FrameTime() * w.TurnCap
+			local mindiff = -maxdiff
+			local originalangles = w.viewangles
+			local diffyaw = math.AngleDifference(viewangles[2], originalangles[2])
+			local diffpitch = math.AngleDifference(viewangles[1], originalangles[1])
+			
+			viewangles[2] = math.NormalizeAngle(originalangles[2] + math.Clamp(diffyaw, mindiff, maxdiff))
+			viewangles[1] = math.NormalizeAngle(originalangles[1] + math.Clamp(diffpitch, mindiff, maxdiff))
+		end
 		w.viewangles = viewangles
-
-		cmd:SetViewAngles(Angle(math.Clamp(viewangles[1], -60, 60), viewangles[2], viewangles[3]))
 	end
+	cmd:SetViewAngles(Angle(math.Clamp(viewangles[1], -60, 60), viewangles[2], viewangles[3]))
 end)

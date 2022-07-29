@@ -5,9 +5,9 @@ function SWEP:m_fWindup(a_state, riposte, flip) -- m_fWindup, because the name c
 	self.m_bQueuedFlip = flip
 
 	if (self.m_iState == STATE_IDLE and CurTime() >= self.m_flPrevRecovery and CurTime() >= self.m_flPrevParry and CurTime() >= self.m_flPrevFlinch) or riposte then
+		local o = self:GetOwner()
 		local flWindupFinal = self.Windup
 		local iFlipFinal = 1
-		local o = self:GetOwner()
 		
 		if riposte then
 			flWindupFinal = self.Windup * self.RiposteMulti
@@ -19,7 +19,6 @@ function SWEP:m_fWindup(a_state, riposte, flip) -- m_fWindup, because the name c
 		
 		o:EmitSound("npc/vort/claw_swing" .. math.random(2) .. ".wav", 75, 125, 1)
 		
-		self:SetHoldType(self.WindupAnim)
 		self:EyeAnglesUpdate()
 		
 		timer.Create("ms_attack_" .. self:EntIndex(), flWindupFinal, 1, function() if self:IsValid() then self:Attack(riposte,iFlipFinal) end end)
@@ -87,7 +86,7 @@ do
 						en = ep + normal:Forward() * ((32 + self.Range)+6*(iAng/iAngleFinal)) + normal:Up() * -8 + normal:Right() * 8*flip
 					end
 					o:LagCompensation(true)
-					local tr = util.TraceHull({
+					local tr = util.TraceLine({
 						start = st,
 						endpos = en,
 						filter = self.m_tFilter
@@ -105,7 +104,6 @@ do
 								self:Riposte(tr.Entity) -- RIPOSTE and PARRY
 								self:AttackFinish(true,st,en,self.slashtag)
 								GAMEMODE:StaminaUpdate(o,nil,true)
-								self:SetHoldType(self.IdleAnim)
 								
 								local effectdata = EffectData()
 								effectdata:SetOrigin(tr.HitPos)
@@ -170,20 +168,21 @@ do
 end
 
 do
+	-- Defines the current sequence set for the viewmodel
 	local defseq = {
 		[STATE_IDLE] = {"idle"},
 		[STATE_PARRY] = {"parry"},
 		[STATE_WINDUP] = {
-			[ANIM_NONE] = "idle",
+			[ANIM_NONE] = nil,
 			[ANIM_STRIKE] = "windup_strike",
 			[ANIM_UPPERCUT] = "windup_uppercut",
 			[ANIM_UNDERCUT] = "windup_undercut",
 			[ANIM_THRUST] = "windup_thrust"
 		},
 		-- STATE_RECOVERY will not have anims for now, also can't set its anims to ANIM_NONE due to it still being used in pmodel lua anims
-		[STATE_RECOVERY] = "idle",
+		[STATE_RECOVERY] = {nil},
 		[STATE_ATTACK] = {
-			[ANIM_NONE] = "idle",
+			[ANIM_NONE] = nil,
 			[ANIM_STRIKE] = "attack_strike",
 			[ANIM_UPPERCUT] = "attack_uppercut",
 			[ANIM_UNDERCUT] = "attack_undercut",
@@ -209,14 +208,16 @@ do
 			end)
 		end
 
-		--w:SetDTInt(WEP_STATE,s)
-		--w:SetDTBool(0,r or false)
-		--if a ~= nil and a ~= ANIM_SKIP then
-			--w:SetDTInt(WEP_ANIM,a)
-		--end
+		--[[
+		w:SetDTInt(WEP_STATE,s)
+		w:SetDTBool(0,r or false)
+		if a ~= nil and a ~= ANIM_SKIP then
+			w:SetDTInt(WEP_ANIM,a)
+		end
+		]]
 
 		local vm = p:GetViewModel()
-		local lseq, ldur = unpack(defseq[s] ~= STATE_RECOVERY and {vm:LookupSequence(defseq[s][a])} or {vm:LookupSequence(defseq[STATE_RECOVERY])})
+		local lseq, ldur = unpack(defseq[s][a] ~= nil and {vm:LookupSequence(defseq[s][a])} or {vm:LookupSequence(defseq[STATE_IDLE][ANIM_NONE])})
 		vm:SendViewModelMatchingSequence(lseq)
 		-- Not sure how unused locals impact performance
 		local calcwindup = r and w.Windup * w.RiposteMulti or w.Windup
@@ -250,7 +251,6 @@ function SWEP:AttackFinish(sv_tracers, tracerst, traceren, tracertag)
 
 	table.Empty(self.m_tFilter)
 	self.m_bRiposting = false
-	self:SetHoldType(self.IdleAnim)
 	
 	if DRAW_SV_TRACERS:GetBool() and sv_tracers then
 		SV_TRACER_DRAW(tracerst, traceren, 3, tracertag)
@@ -262,7 +262,7 @@ function SWEP:Flinch(p)
 	if w.m_bRiposting then return end
 	
 	w.m_flPrevParry = 0.0
-	w.m_flPrevFlinch = CurTime() + self.Recovery --+ self.AngleStrike * self.Release
+	w.m_flPrevFlinch = CurTime() + self.Recovery
 	timer.Stop("ms_attack_" .. w:EntIndex())
 	
 	p:EmitSound("physics/flesh/flesh_strider_impact_bullet"..math.random(3)..".wav",75,120,1)
@@ -272,17 +272,9 @@ function SWEP:Flinch(p)
 	net.Broadcast()
 
 	self:StateUpdate(p, STATE_RECOVERY, ANIM_NONE)
-	--[[
-	-- CSENT flinch recovery anim
-	if w.m_iState ~= STATE_IDLE then
-		self:StateUpdate(p, STATE_RECOVERY)
-		else
-		self:StateUpdate(p, STATE_RECOVERY, ANIM_NONE)
-	end
-	]]
 end
 
-function SWEP:Riposte(p) -- successful parry
+function SWEP:Riposte(p)
 	p:EmitSound("physics/metal/metal_solid_impact_bullet"..math.random(2)..".wav",75,100,1)
 	p:ViewPunch(Angle(-2, 0, 0))
 	GAMEMODE:StaminaUpdate(p,p.m_iStamina - 7,true)
@@ -303,19 +295,18 @@ end
 
 function SWEP:Parry()
 	if CurTime() >= self.m_flPrevParry and self.m_iState <= STATE_RECOVERY then
-	
 		local o = self:GetOwner()
-		self.m_flPrevParry = CurTime() + 1 + 1/3
-		
-		-- Reset vars
+
+		-- Reset fields
 		self.m_bRiposting = false
 		self.m_bQueuedFlip = false
 		self.m_iQueuedAnim = ANIM_NONE
 		
+		self.m_flPrevParry = CurTime() + 1 + 1/3
+		
 		if self.m_iState == STATE_IDLE or STATE_WINDUP then
 			
 			o:EmitSound("physics/flesh/flesh_impact_hard3.wav", 75, 100, 1)
-			self:SetHoldType(self.ParryAnim)
 			
 			if self.m_iState == STATE_WINDUP then
 				GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.FeintDrain, true) -- FTP punish
@@ -333,7 +324,6 @@ function SWEP:Parry()
 					self:StateUpdate(o, STATE_RECOVERY, ANIM_NONE)
 				end
 				
-				self:SetHoldType(self.IdleAnim)
 				o:EmitSound("physics/flesh/flesh_impact_hard2.wav", 75, 50, 1)
 			end)
 		

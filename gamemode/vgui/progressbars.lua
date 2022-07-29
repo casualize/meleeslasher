@@ -2,9 +2,10 @@ local PANEL = {}
 
 function PANEL:Init()
 
-	self:SetSize(ScrW(),ScrH())
+	self:SetSize(ScrW(), ScrH())
 	self:SetZPos(0) -- -32768
 	
+	-- sick globals and boilerpl8 br0
 	HealthProgress = vgui.Create("DProgress", self)
 	fHealthProgress = vgui.Create("DProgress", self)
 	StaminaProgress = vgui.Create("DProgress", self)
@@ -95,4 +96,4 @@ function PANEL:Paint()
 end
 
 
-vgui.Register("ProgressBars",PANEL,"DPanel")
+vgui.Register("ProgressBars", PANEL, "DPanel")

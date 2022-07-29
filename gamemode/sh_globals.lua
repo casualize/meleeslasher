@@ -9,7 +9,7 @@ STATE_WINDUP = 3
 STATE_RECOVERY = 4
 STATE_ATTACK = 5
 
--- Used for windup, recovery and attack anims, the enums must start as 1 because table indexes start at 1
+-- Used for windup, recovery and attack anims, the enums must start as 1 because table indices start at 1
 ANIM_NONE = 1
 ANIM_STRIKE = 2
 ANIM_UPPERCUT = 3
@@ -40,6 +40,23 @@ DBG_STATE = {
 	[STATE_WINDUP] = "state_windup",
 	[STATE_RECOVERY] = "state_recovery",
 	[STATE_ATTACK] = "state_attack"
+}
+
+-- Used for displaying emotes
+DEF_EMOTE = {
+	"gesture_agree",
+	"gesture_bow",
+	"gesture_becon",
+	"gesture_disagree",
+	"gesture_salute",
+	"gesture_wave",
+	"gesture_item_drop",
+	"gesture_item_give",
+	"gesture_item_place",
+	"gesture_item_throw",
+	"gesture_signal_forward",
+	"gesture_signal_halt",
+	"gesture_signal_group"
 }
 
 -- Other globals
