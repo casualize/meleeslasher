@@ -14,7 +14,7 @@ include("sh_animations.lua")
 include("player_movement/shared.lua")
 include("zsbots/init.lua")
 
-function GM:StaminaUpdate(ent,i,punish)
+function GM:StaminaUpdate(ent, i, punish)
 	if IsValid(ent) and ent:IsPlayer() then
 		ent.m_flPrevStamina = punish and CurTime() + 4 or ent.m_flPrevStamina
 		if i ~= nil then
@@ -28,20 +28,22 @@ function GM:StaminaUpdate(ent,i,punish)
 	end
 end
 
+-- forgive me!!!
 function GM:AddNetworkStrings()
 	util.AddNetworkString("ms_tracer_server")
 	util.AddNetworkString("ms_stamina_update")
 	util.AddNetworkString("ms_state_update")
-	util.AddNetworkString("ms_inflict_player")
+	util.AddNetworkString("ms_player_inflict")
 	util.AddNetworkString("ms_ea_update")
 	util.AddNetworkString("ms_bind_attack")
 	util.AddNetworkString("ms_bind_other")
-	util.AddNetworkString("ms_emote") -- Used both server and client
+	util.AddNetworkString("ms_emote") -- sv/cl
+	util.AddNetworkString("ms_damageindicator")
 end
 
 function GM:Initialize()
 	self:AddNetworkStrings()
-	DRAW_SV_TRACERS = CreateConVar("ms_sv_draw_tracers", "0", true, false)
+	DRAW_SV_TRACERS = CreateConVar("ms_sv_debug_tracers", "0", true, false)
 	DEBUG_STATES = CreateConVar("ms_sv_debug_states", "0", true, false)
 end
 
@@ -53,7 +55,7 @@ end
 --p:SetModel("models/player/aoc_"..player_mdl[math.random(#player_mdl)]..".mdl")
 
 function GM:PlayerSpawn(p)
-	local strModel = "models/player/breen.mdl"
+	local strModel = "models/player/Group01/male_07.mdl"
 	--[[
 	local strInfo = p:GetInfo("cl_playermodel")
 	for _, v in pairs(player_manager.AllValidModels()) do
@@ -133,7 +135,7 @@ net.Receive("ms_bind_other", function(_, p)
 end)
 net.Receive("ms_emote", function(_, p)
 	local e = net.ReadUInt(8)
-	if IsValid(p:GetActiveWeapon()) then
+	if IsValid(p:GetActiveWeapon()) and p:GetActiveWeapon().m_iState == STATE_IDLE then
 		p:AddVCDSequenceToGestureSlot(0, p:LookupSequence(DEF_EMOTE[e]), 0, true) -- Synchronize hitboxes with gestures
 		net.Start("ms_emote")
 			net.WriteUInt(p:UserID(), 16)
@@ -143,8 +145,17 @@ net.Receive("ms_emote", function(_, p)
 end)
 
 function GM:EntityTakeDamage(ent, info)
-	if ent:GetClass() == "player" then
-		local strid = info:GetDamage() >= 10 and math.random(8,9) or math.random(1,3)
+	if type(ent) == "Player" then
+		local dmg = info:GetDamage()
+
+		if type(info:GetAttacker()) == "Player" then
+			net.Start("ms_damageindicator")
+				net.WriteUInt(ent:UserID(), 16)
+				net.WriteUInt(dmg, 16)
+			net.Send(info:GetAttacker())
+		end
+
+		local strid = dmg >= 10 and math.random(8,9) or math.random(1,3)
 		ent:EmitSound("vo/npc/male01/pain0" .. strid .. ".wav", 75, 100, 1)
 
 		GAMEMODE:StaminaUpdate(ent, nil, true)
@@ -152,9 +163,13 @@ function GM:EntityTakeDamage(ent, info)
 end
 
 function GM:DoPlayerDeath(p, att, info)
-	p:CreateRagdoll()
+
+	local ref = ents.Create("prop_corpse")
+	ref:SetOwner(p)
+	ref:Spawn()
+	
 	p:AddDeaths(1)
-	if att:IsValid() and att ~= p then
+	if att:IsValid() and att ~= p and type(att) == "Player" then
 		att:AddFrags(1)
 	end
 end

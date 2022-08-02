@@ -15,15 +15,7 @@ ANIM_STRIKE = 2
 ANIM_UPPERCUT = 3
 ANIM_UNDERCUT = 4
 ANIM_THRUST = 5
-
--- Used for slash calculations, constants
-CALC_SLASH = {
-	[ANIM_NONE] = {nil, nil},
-	[ANIM_STRIKE] = {-1, 90},
-	[ANIM_UPPERCUT] = {-1, 45},
-	[ANIM_UNDERCUT] = {1, -45},
-	[ANIM_THRUST] = {nil, nil}
-}
+ANIM_KICK = 6 -- one day...
 
 -- Used for debugging
 DBG_NCALLS = 0
@@ -39,24 +31,47 @@ DBG_STATE = {
 	[STATE_PARRY] = "state_parry",
 	[STATE_WINDUP] = "state_windup",
 	[STATE_RECOVERY] = "state_recovery",
-	[STATE_ATTACK] = "state_attack"
+	[STATE_ATTACK] = "STATE_ATTACK"
 }
 
 -- Used for displaying emotes
 DEF_EMOTE = {
 	"gesture_agree",
-	"gesture_bow",
+	"gesture_cheer",
 	"gesture_becon",
 	"gesture_disagree",
 	"gesture_salute",
 	"gesture_wave",
+	"gesture_signal_forward",
+	"gesture_signal_halt",
+	"gesture_signal_group",
+	"gesture_bow",
 	"gesture_item_drop",
 	"gesture_item_give",
 	"gesture_item_place",
 	"gesture_item_throw",
-	"gesture_signal_forward",
-	"gesture_signal_halt",
-	"gesture_signal_group"
+}
+
+-- Define the custom gestures set from *_anm.mdl, the mdl had to be overriden to save the hassle (can't just do another animation mdl without $includemodel'ing every pmdl eitherway)
+DEF_ANM_SEQUENCES = {
+	[STATE_IDLE] = {nil},
+	[STATE_PARRY] = {"ms_parry"},
+	[STATE_WINDUP] = {
+		[ANIM_NONE] = nil,
+		[ANIM_STRIKE] = nil,--"ms_windup_strike",
+		[ANIM_UPPERCUT] = nil,--"ms_windup_uppercut",
+		[ANIM_UNDERCUT] = nil,--"ms_windup_undercut",
+		[ANIM_THRUST] = nil--"ms_windup_thrust"
+	},
+	-- STATE_RECOVERY will not have anims for now, also can't set its anims to ANIM_NONE due to it still being used in pmodel lua anims
+	[STATE_RECOVERY] = {"CONTINUE"},
+	[STATE_ATTACK] = {
+		[ANIM_NONE] = nil,
+		[ANIM_STRIKE] = "ms_attack_strike",
+		[ANIM_UPPERCUT] = "ms_attack_uppercut",
+		[ANIM_UNDERCUT] = "ms_attack_undercut",
+		[ANIM_THRUST] = "ms_attack_thrust"
+	}
 }
 
 -- Other globals

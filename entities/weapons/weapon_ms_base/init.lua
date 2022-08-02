@@ -1,5 +1,9 @@
 INC_SERVER()
 
+function SWEP:SetupDataTables()
+	self:NetworkVar("Int", 0, "Got")
+end
+
 function SWEP:m_fWindup(a_state, riposte, flip) -- m_fWindup, because the name conflicts self.Windup, a float value...
 	self.m_iQueuedAnim = a_state
 	self.m_bQueuedFlip = flip
@@ -65,27 +69,32 @@ do
 		
 		o:EmitSound(self.m_soundRelease[math.random(#self.m_soundRelease)] .. ".wav", 75, math.random(80, 100), 1)
 		o:EmitSound("npc/vort/claw_swing" .. math.random(2) .. ".wav", 75, 80, 1)
+
+		local attachment
+		for i = 0, o:GetBoneCount() - 1 do
+			attachment = o:GetBoneName(i)
+			if attachment == "ValveBiped.Anim_Attachment_RH" then
+				attachment = i
+				break
+			end
+		end
+		if not attachment then
+			print("ValveBiped.Anim_Attachment_RH wasn't found!")
+		end
 		
 		local iAngleFinal = self.m_iAnim ~= ANIM_THRUST and self.AngleStrike or 90
-		-- Reminder, unpack must be the last arg, this is lua's defined behavior (for functions of course)
-		local inv, rot = unpack(CALC_SLASH[self.m_iAnim])
-		for iAng = 0, iAngleFinal do
-			timer.Simple(self.Release * iAng, function()
-				if o:IsValid() and self.m_iState == STATE_ATTACK then
-					local ea = o:EyeAngles()
-					local ep = o:EyePos()
-					local st, en
-					if self.m_iAnim ~= ANIM_THRUST then
-						local normal = Angle(self.AngleStrikeOffset*inv - ea[1] + iAng*inv, 180+ea[2], 0)
-						normal:RotateAroundAxis(ea:Forward(), rot*flip)
-						st = ep + normal:Forward() * 32 + normal:Right() * 8*inv*flip -- Right is UP(?)
-						en = ep + normal:Forward() * (32 + self.Range) + normal:Right() * 8*inv*flip
-					else
-						local normal = Angle(Angle(ea[1] + math.cos(math.rad(270*iAng/iAngleFinal)) * 2, ea[2] - math.sin(math.rad(270*iAng/iAngleFinal)) * 2*flip, 0))
-						st = ep + normal:Forward() * (32+6*(iAng/iAngleFinal)) + normal:Up() * -8 + normal:Right() * 8*flip
-						en = ep + normal:Forward() * ((32 + self.Range)+6*(iAng/iAngleFinal)) + normal:Up() * -8 + normal:Right() * 8*flip
-					end
+		local incrmul = math.floor(engine.TickInterval() / self.Release + 0.5)
+		local st, en, v, a
+
+		local iThink = 0
+		local iAng = 0
+		function self:Think()
+			if self.m_iState == STATE_ATTACK then
+				for iAng = 1, incrmul do
 					o:LagCompensation(true)
+					v, a = o:GetBonePosition(attachment)
+					st = v + a:Up() * iAng -- Perhaps could use some sort of get for next cycle's position?
+					en = st + a:Right() * -self.Range
 					local tr = util.TraceLine({
 						start = st,
 						endpos = en,
@@ -93,24 +102,19 @@ do
 					})
 					o:LagCompensation(false)
 					if tr.HitWorld then
-						self:AttackFinish(true,st,en,self.slashtag)
+						self:AttackFinish(st, en, self.slashtag)
 						GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
 						o:EmitSound("physics/concrete/concrete_impact_bullet"..math.random(4)..".wav",75,100,1)
-						return
+						break
 					end
 					if tr.Entity ~= NULL and tr.Entity ~= o then
-						if tr.Entity:GetClass() == "player" and tr.Entity:GetActiveWeapon() then
+						if type(tr.Entity) == "Player" and tr.Entity:GetActiveWeapon() then
 							if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY then -- PARRY
 								self:Riposte(tr.Entity) -- RIPOSTE and PARRY
-								self:AttackFinish(true,st,en,self.slashtag)
+								self:AttackFinish(st, en, self.slashtag)
 								GAMEMODE:StaminaUpdate(o,nil,true)
 								
-								local effectdata = EffectData()
-								effectdata:SetOrigin(tr.HitPos)
-								--effectdata:SetNormal(tr.HitPos:Normalize())
-								util.Effect("MetalSpark", effectdata, true,false)
-								
-								return
+								break
 							else
 								if self.Cleave then
 									local bFilter = false
@@ -131,8 +135,8 @@ do
 									self:Flinch(tr.Entity)
 									GAMEMODE:StaminaUpdate(o, o.m_iStamina + 40, true)
 									self:DamageSimple(iAng, tr.Entity, CheckMulti(tr.Entity,tr.HitGroup))
-									self:AttackFinish(true, st, en, self.slashtag)
-									return
+									self:AttackFinish(st, en, self.slashtag)
+									break
 								end
 							end
 								
@@ -140,9 +144,9 @@ do
 							tr.Entity:GetPhysicsObject():SetVelocity(tr.Entity:GetVelocity() + (tr.Entity:GetPos()-tr.HitPos)*1000)
 							tr.Entity:EmitSound("physics/metal/metal_barrel_impact_hard"..math.random(3)..".wav", 75, 120, 1)
 							self:DamageSimple(iAng, tr.Entity, 1)
-							self:AttackFinish(true, st, en, self.slashtag)
+							self:AttackFinish(st, en, self.slashtag)
 							GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.StaminaDrain, true)
-							return
+							break
 						end
 					end
 					
@@ -154,15 +158,14 @@ do
 						end
 						SV_TRACER_DRAW(st, en, idx, self.slashtag)
 					end
-					
-					
-					if iAng == iAngleFinal then
-						self:AttackFinish(false)
+					if iThink + iAng >= iAngleFinal then
+						self:AttackFinish()
 						GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
-						return
+						break
 					end
 				end
-			end)
+				iThink = iThink + incrmul
+			end
 		end
 	end
 end
@@ -191,47 +194,58 @@ do
 	}
 	function SWEP:StateUpdate(p, s, a, r, f)
 		local w = p:GetActiveWeapon()
-		w.m_flPrevState = CurTime()
-		w.m_iState = s
-		w.m_iAnim = a
+		if IsValid(w) then
+			w.m_flPrevState = CurTime()
+			w.m_iState = s or w.m_iState
+			w.m_iAnim = a or w.m_iAnim
 
-		if DEBUG_STATES:GetBool() then
-			DBG_NCALLS = DBG_NCALLS + 1
-			print(DBG_NCALLS, p, DBG_STATE[s], DBG_ANIM[a], r and "riposte" or "")
+			if DEBUG_STATES:GetBool() then
+				DBG_NCALLS = DBG_NCALLS + 1
+				print(DBG_NCALLS, p, DBG_STATE[w.m_iState], DBG_ANIM[w.m_iAnim], r and "riposte" or "")
+			end
+
+			if w.m_iState == STATE_RECOVERY then
+				timer.Simple(w.Windup, function()
+					if IsValid(self) and not w.m_bRiposting and w.m_iState == STATE_RECOVERY then
+						self:StateUpdate(p, STATE_IDLE)
+					end
+				end)
+			end
+
+			-- Synchronize pmodel animations with server
+			local seq = DEF_ANM_SEQUENCES[w.m_iState][w.m_iAnim]
+			if seq ~= nil and seq ~= "CONTINUE" then
+				p:AddVCDSequenceToGestureSlot(0, p:LookupSequence(seq), 0, true)
+			end
+
+			--[[
+			w:SetDTInt(WEP_STATE,s)
+			w:SetDTBool(0,r or false)
+			if a ~= nil and a ~= ANIM_SKIP then
+				w:SetDTInt(WEP_ANIM,a)
+			end
+			]]
+
+			-- Viewmodel stuff
+			local vm = p:GetViewModel()
+			local lseq, ldur = unpack(defseq[s][a] ~= nil and {vm:LookupSequence(defseq[s][a])} or {vm:LookupSequence(defseq[STATE_IDLE][ANIM_NONE])})
+			vm:SendViewModelMatchingSequence(lseq)
+			-- Not sure how unused locals impact performance
+			local calcwindup = r and w.Windup * w.RiposteMulti or w.Windup
+			local calcattack = a ~= ANIM_THRUST and w.Release * w.AngleStrike or w.Release * 90
+			local prate = s ~= STATE_ATTACK and ldur / calcwindup or ldur / calcattack
+			vm:SetPlaybackRate(prate)
+			
+			net.Start("ms_state_update")
+				net.WriteUInt(p:UserID(), 16)
+				net.WriteUInt(w.m_iState, 3)
+				net.WriteUInt(w.m_iAnim or ANIM_SKIP, 3)
+				net.WriteBool(r or false) -- Bitset these maybe?
+				net.WriteBool(f or false)
+			net.Broadcast()
+
+			self:SetGot(w.m_iState)
 		end
-
-		if s == STATE_RECOVERY then
-			timer.Simple(w.Windup, function()
-				if p:IsValid() and not w.m_bRiposting and w.m_iState == STATE_RECOVERY then
-					self:StateUpdate(p, STATE_IDLE, ANIM_NONE)
-				end
-			end)
-		end
-
-		--[[
-		w:SetDTInt(WEP_STATE,s)
-		w:SetDTBool(0,r or false)
-		if a ~= nil and a ~= ANIM_SKIP then
-			w:SetDTInt(WEP_ANIM,a)
-		end
-		]]
-
-		local vm = p:GetViewModel()
-		local lseq, ldur = unpack(defseq[s][a] ~= nil and {vm:LookupSequence(defseq[s][a])} or {vm:LookupSequence(defseq[STATE_IDLE][ANIM_NONE])})
-		vm:SendViewModelMatchingSequence(lseq)
-		-- Not sure how unused locals impact performance
-		local calcwindup = r and w.Windup * w.RiposteMulti or w.Windup
-		local calcattack = a ~= ANIM_THRUST and w.Release * w.AngleStrike or w.Release * 90
-		local prate = s ~= STATE_ATTACK and ldur / calcwindup or ldur / calcattack
-		vm:SetPlaybackRate(prate)
-		
-		net.Start("ms_state_update")
-			net.WriteUInt(p:UserID(), 16)
-			net.WriteUInt(s, 3)
-			net.WriteUInt(a or ANIM_SKIP, 3)
-			net.WriteBool(r or false) -- Bitset these maybe?
-			net.WriteBool(f or false)
-		net.Broadcast()
 	end
 end
 
@@ -242,7 +256,7 @@ function SWEP:EyeAnglesUpdate()
 	end
 end
 
-function SWEP:AttackFinish(sv_tracers, tracerst, traceren, tracertag)
+function SWEP:AttackFinish(tracerst, traceren, tracertag)
 	local o = self:GetOwner()
 	
 	self.m_flPrevRecovery = CurTime() + self.Recovery
@@ -251,9 +265,15 @@ function SWEP:AttackFinish(sv_tracers, tracerst, traceren, tracertag)
 
 	table.Empty(self.m_tFilter)
 	self.m_bRiposting = false
-	
-	if DRAW_SV_TRACERS:GetBool() and sv_tracers then
-		SV_TRACER_DRAW(tracerst, traceren, 3, tracertag)
+	if tracerst then
+		local effectdata = EffectData()
+		effectdata:SetOrigin(tracerst)
+		--effectdata:SetNormal(tr.HitPos:Normalize())
+		util.Effect("MetalSpark", effectdata, true, false)
+
+		if DRAW_SV_TRACERS:GetBool() then
+			SV_TRACER_DRAW(tracerst, traceren, 3, tracertag)
+		end
 	end
 end
 
@@ -266,8 +286,8 @@ function SWEP:Flinch(p)
 	timer.Stop("ms_attack_" .. w:EntIndex())
 	
 	p:EmitSound("physics/flesh/flesh_strider_impact_bullet"..math.random(3)..".wav",75,120,1)
-	p:AnimRestartGesture(GESTURE_SLOT_FLINCH, ACT_FLINCH_PHYSICS, true) -- Keep hitboxes synchronized
-	net.Start("ms_inflict_player")
+	p:AnimRestartGesture(GESTURE_SLOT_FLINCH, ACT_FLINCH_PHYSICS, true) -- Keep hitboxes synchronized with server
+	net.Start("ms_player_inflict")
 		net.WriteUInt(p:UserID(), 16)
 	net.Broadcast()
 
@@ -319,7 +339,7 @@ function SWEP:Parry()
 			self:EyeAnglesUpdate()
 			
 			timer.Simple(1/3, function()
-				if self.m_iState == STATE_WINDUP and self.m_flPrevRecovery == 0.0 then return end
+				if not IsValid(self) or self.m_iState == STATE_WINDUP and self.m_flPrevRecovery == 0.0 then return end
 				if not self.m_bRiposting then
 					self:StateUpdate(o, STATE_RECOVERY, ANIM_NONE)
 				end
@@ -334,7 +354,7 @@ end
 function SWEP:Feint()
 	if self.m_iState == STATE_WINDUP and not self.m_bRiposting and self:GetOwner().m_iStamina ~= 0 then
 		local o = self:GetOwner()
-		self:StateUpdate(o, STATE_IDLE, ANIM_NONE)
+		self:StateUpdate(o, STATE_IDLE)
 		timer.Stop("ms_attack_" .. self:EntIndex())
 		GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.FeintDrain, true)
 	end

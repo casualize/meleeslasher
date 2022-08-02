@@ -1,6 +1,6 @@
 local PANEL = {}
-local slots = {}
-local main
+local ref_slot = {}
+local ref_main
 
 function PANEL:Init()
 
@@ -8,20 +8,20 @@ function PANEL:Init()
     self:SetPos(ScrW() / 64, ScrH() / 2)
 	self:SetZPos(0) -- -32768
 
-    main = vgui.Create("DFrame", self)
-    main:SetSize(self:GetSize())
-    main:SetTitle("Emotes :D")
-    main:ShowCloseButton(false)
-    main:SetDraggable(false)
+    ref_main = vgui.Create("DFrame", self)
+    ref_main:SetSize(self:GetSize())
+    ref_main:SetTitle("Emotes :D")
+    ref_main:ShowCloseButton(false)
+    ref_main:SetDraggable(false)
 
     for i = 1, 10 do
         local it = i % 10 -- Base 9
         local txt = it == 0 and "[" .. it .. "] Index further" or "nil"
-        slots[it] = vgui.Create("DLabel", main)
-        slots[it]:SetText(txt)
-        local x, _ = main:GetSize()
-        slots[it]:SetSize(x, 20)
-        slots[it]:SetPos(10, (i + 1) * 20)
+        ref_slot[it] = vgui.Create("DLabel", ref_main)
+        ref_slot[it]:SetText(txt)
+        local x, _ = ref_main:GetSize()
+        ref_slot[it]:SetSize(x, 20)
+        ref_slot[it]:SetPos(10, (i + 1) * 20)
     end
 end
 
@@ -29,14 +29,14 @@ function PANEL:Paint()
 
     local p = LocalPlayer()
 
-    if p or p["m_bEmotePanelActive"] then
-        if p.m_bEmotePanelActive ~= true then
-            main:Hide()
+    if p or p["m_bEmotePanelToggle"] then
+        if p.m_bEmotePanelToggle ~= true then
+            ref_main:Hide()
         else
-            main:Show()
+            ref_main:Show()
             for i = 1, 9 do
                 local str = DEF_EMOTE[p.m_iEmotePanelIndices * 9 + i] ~= nil and DEF_EMOTE[p.m_iEmotePanelIndices * 9 + i] or "nil"
-                slots[i]:SetText("[" .. i .. "] " .. str)
+                ref_slot[i]:SetText("[" .. i .. "] " .. str)
             end
         end
     end

@@ -1,8 +1,8 @@
 -- unobstructed path has a flaw where people in the air are considered a straight path (on ground check?)
 
 ZSBOTS = {}
+REF_ZSBOTS = {} -- Sequential
 
-local TEAM_HUMAN = TEAM_HUMAN
 local RealTime = RealTime
 local CurTime = CurTime
 local IN_ATTACK = IN_ATTACK
@@ -14,22 +14,10 @@ local IN_MOVERIGHT = IN_MOVERIGHT
 local util_TraceEntity = util.TraceEntity
 local Path = Path
 
-local Bots = {}
-function ZSBOTS:GetBots()
-	return Bots
-end
-
-local eyepos
---[[
-local function SortObstructions(posa, posb)
-	return posa:DistToSqr(eyepos) < posb:DistToSqr(eyepos)
-end
-]]
-
-local target
+local eyepos, target
 local obstrace = {mask = MASK_PLAYERSOLID, filter = function(ent) return ent ~= target and not ent:IsPlayer() end}
 function ZSBOTS.StartCommand(pl, cmd)
-	if not pl.IsZSBot or not pl:Alive() then return end
+	if not pl.m_bZSBot or not pl:Alive() then return end
 
 	local buttons = 0
 
@@ -151,7 +139,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 					if wep.m_iState == STATE_IDLE then
 						if pl.m_flPrevFeint + 0.4 <= CurTime() then
 							pl.m_aAttack = Angle() -- Angle(math.random(-30,30),math.random(-30,30),0)
-							wep:m_fWindup(math.random(2, 5), false, math.random() >= 0.5)
+							wep:m_fWindup(math.random(2, 5), false, false)
 						end
 					end
 					if wep.m_iState == STATE_WINDUP then
@@ -177,7 +165,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 					cmd:SetForwardMove(-10000)
 				end
 				if wep.m_iState == STATE_PARRY then
-					wep:m_fWindup(math.random(2, 5), false, math.random() >= 0.5)
+					wep:m_fWindup(math.random(2, 5), false, false)
 				elseif wep.m_iState == STATE_ATTACK then
 					buttons = bit.bor(buttons, IN_FORWARD)
 					cmd:SetForwardMove(10000)
@@ -212,17 +200,13 @@ function ZSBOTS.StartCommand(pl, cmd)
 end
 
 function ZSBOTS.PlayerTick(pl, mv)
-	if not pl.IsZSBot then return end
+	if not pl.m_bZSBot then return end
 
 	pl.NB:SetPos(pl:GetPos():__add(Vector(0,0,8)))
 	pl.NB:SetLocalVelocity(vector_origin)
 
 	if not pl:Alive() then return end
 
-	--if pl:Team() == TEAM_HUMAN then
-		-- "suicide" since we only want to be a zombie
-	--	pl:Kill()
-	--else
 		-- We don't update our path every frame because it would be excessive.
 		-- We move directly towards a player if we're very near and visible so that's okay.
 		if CurTime() >= pl.NextPathUpdate then
@@ -239,7 +223,6 @@ function ZSBOTS.PlayerTick(pl, mv)
 		else
 			pl.StuckFrames = 0
 		end
-	--end
 end
 
 local temp_bot_pos
@@ -256,8 +239,8 @@ end
 
 local NextBotTick = 0
 function ZSBOTS.Think()
-	for _, bot in ipairs(Bots) do
-		if not bot:Alive() then
+	for _, bot in ipairs(REF_ZSBOTS) do
+		if bot ~= NULL and not bot:Alive() then
 			gamemode.Call("PlayerDeathThink", bot)
 		end
 	end
@@ -266,11 +249,11 @@ function ZSBOTS.Think()
 	NextBotTick = CurTime() + 0.25
 
 	-- This is significantly cheaper than pathfinding to all valid targets.
-	for _, bot in pairs(Bots) do
+	for _, bot in ipairs(REF_ZSBOTS) do
 		bot.PathableTargets = {}
 
 		for __, pl in ipairs(player.GetAll()) do
-			if pl ~= bot and pl:Alive() and pl:GetObserverMode() == OBS_MODE_NONE then
+			if pl ~= bot and --[[not pl:IsBot() and]] pl:Alive() and pl:GetObserverMode() == OBS_MODE_NONE then
 				table.insert(bot.PathableTargets, pl)
 			elseif pl:IsBot() and not pl:Alive() then
 				gamemode.Call("PlayerDeathThink", pl)
@@ -321,18 +304,14 @@ function ZSBOTS:CreateBot(teamid, name)
 		return
 	end
 
-	if not name then
-		autonameindex = autonameindex + 1
-		name = "Player "..autonameindex
-	end
-
-	name = "BOT "..name
+	-- Might conflict with connecting players?
+	name = name ~= nil and name or ("UserID " .. player.GetAll()[player.GetCount()]:UserID() + 1)
 
 	ZSBOT = true
 
 	local pl = player.CreateNextBot(name)
 	if pl:IsValid() then
-		pl.IsZSBot = true
+		pl.m_bZSBot = true
 
 		--pl:ChangeTeam(teamid)
 		pl:Spawn()
@@ -357,7 +336,7 @@ function ZSBOTS:CreateBot(teamid, name)
 		pl.NextPathUpdate = 0
 		pl.PathableTargets = {}
 
-		table.insert(Bots, pl)
+		table.insert(REF_ZSBOTS, pl)
 
 		self:AddOrRemoveHooks()
 	end
@@ -365,35 +344,34 @@ function ZSBOTS:CreateBot(teamid, name)
 	ZSBOT = false
 end
 
-local randomtaunts = {
-	"dang owned :remnic:",
-	"woooooow killed by a bot",
-	":ez:",
-	"fucking owned lol :ez::gg:",
-	":dsp drot=-90 rotrate=60::gunl drot=25 rotrate=130::ahhahahaha c=255,0,0::youdied:"
-}
-function ZSBOTS.DoPlayerDeath(p, att, info)
-	if att.IsZSBot and not p:IsBot() then
-		att:Say(table.Random(randomtaunts))
-	end
-end
-
 do
-	local ename = {"StartCommand", "Think", "PlayerTick", "DoPlayerDeath"}
-	function ZSBOTS:AddOrRemoveHooks()
-		local toggle = #Bots ~= 0 and "Add" or "Remove"
-		for _, v in ipairs(ename) do
-			hook[toggle](v, "ZSBOTS_" .. v, self[v]) -- "Remove" method doesn't parse remaining args anyway
+	local randomtaunts = {
+		"dang owned :remnic:",
+		"woooooow killed by a bot",
+		":ez:",
+		"fucking owned lol :ez::gg:",
+		":dsp drot=-90 rotrate=60::gunl drot=25 rotrate=130::ahhahahaha c=255,0,0::youdied:"
+	}
+	function ZSBOTS.DoPlayerDeath(p, att, info)
+		if att.m_bZSBot and not p:IsBot() then
+			att:Say(table.Random(randomtaunts))
 		end
 	end
 end
 
-hook.Add("PlayerDisconnect", "zsbots", function(pl)
-	if pl:IsBot() then
-		table.RemoveByValue(Bots, pl)
+function ZSBOTS.PlayerDisconnected(p)
+	if p:IsBot() and p.m_bZSBot then
+		table.RemoveByValue(REF_ZSBOTS, p)
 		ZSBOTS:AddOrRemoveHooks()
 	end
-end)
+end
+
+-- Recalling hook.add will override the function() ? This may cause issues
+function ZSBOTS:AddOrRemoveHooks()
+	for _, v in ipairs({"StartCommand", "Think", "PlayerTick", "DoPlayerDeath", "PlayerDisconnected"}) do
+		hook[#REF_ZSBOTS ~= 0 and "Add" or "Remove"](v, "ZSBOTS_" .. v, self[v]) -- Last arg is only for "Add"
+	end
+end
 
 local meta = FindMetaTable("Player")
 function meta:SetCurrentEnemy(enemy)
@@ -513,7 +491,7 @@ function meta:UpdateBotPath()
 
 	if not new_enemy then return end
 
-	-- path:Draw() -- DEBUG
+	-- path:Draw() -- For debugging
 
 	-- Find the first segment not immediately near us
 	local goal = path:GetCurrentGoal()
@@ -563,7 +541,7 @@ concommand.Add("createnavmesh", function(sender)
 	end
 end)
 
--- Creating fields within a table avoids rehashing (although definitely not a performance boost, just a practise)
+-- Creating fields within a table avoids rehashing (although definitely not a performance boost, just a practice)
 local ENT = {
 	Type = "nextbot",
 	Base = "base_nextbot",

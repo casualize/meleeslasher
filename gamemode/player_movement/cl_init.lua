@@ -1,6 +1,4 @@
 --CACHED GLOBALS (TODO)
-local TEAM_HUMAN = TEAM_HUMAN
-local TEAM_UNDEAD = TEAM_UNDEAD
 local math = math
 local bit = bit
 local IN_JUMP = IN_JUMP
@@ -33,16 +31,16 @@ local function PressDuck(cmd, press)
 end
 
 local TimeDuckHeld = 0
-hook.Add("CreateMove","DuckJumpAlter", function(cmd)
-	local MySelf = LocalPlayer()
+function DuckJumpAlter(cmd)
+	local p = LocalPlayer()
 	
-	if MySelf.m_flJumpStartTime + 1 >= CurTime() or MySelf:GetActiveWeapon().m_iState == STATE_ATTACK then
+	if p.m_flJumpStartTime + 1 >= CurTime() or p:GetActiveWeapon().m_iState == STATE_ATTACK then
 		PressJump(cmd, false)
 	end
 
 	-- Anti spaz out method A. Forces player to stay ducking until 0.5s after landing if they crouch in mid-air AND disables jumping during that time.
 		-- Forces duck to be held for 0.5s after pressing it if in mid-air
-	if MySelf:OnGround() then
+	if p:OnGround() then
 		TimeDuckHeld = 0
 	elseif PressingDuck(cmd) then
 		TimeDuckHeld = 0.9
@@ -50,4 +48,4 @@ hook.Add("CreateMove","DuckJumpAlter", function(cmd)
 		TimeDuckHeld = TimeDuckHeld - FrameTime() -- 1 tick behind?
 		PressDuck(cmd, true)
 	end
-end)
+end
