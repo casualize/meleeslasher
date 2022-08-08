@@ -1,3 +1,19 @@
+do -- Does this even do anything?
+	local overridet = {
+		"GrabEarAnimation",
+		"MouthMoveAnimation",
+		"HandlePlayerDriving",
+		"HandlePlayerLanding",
+		"HandlePlayerSwimming",
+		"HandlePlayerVaulting",
+		"HandlePlayerNoClipping",
+		"HandlePlayerJumping"
+	}
+	for _, k in ipairs(overridet) do
+		GM[k] = function() end
+	end
+end
+
 function GM:HandlePlayerDucking( ply, velocity )
 
 	if ( !ply:IsFlagSet( FL_ANIMDUCKING ) ) then return false end
@@ -37,51 +53,39 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 	if CLIENT then
 		local w = ply:GetActiveWeapon()
 		if IsValid(w) and w.m_flWeight then
-			if w.m_iState == STATE_RECOVERY then
-				w.m_flWeight = w.m_flWeight or 1
-				local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
-				w.m_flWeight = math.Approach( w.m_flWeight, 0, FrameTime() * w.Windup * 2)
-				if seq ~= nil then
-					ply:AddVCDSequenceToGestureSlot(0, ply:LookupSequence(seq), w.m_flCycle, true)
+			local multi = 2
+			local incr = FrameTime() * w.Windup * multi -- not frametime??!
+			local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
+			local seqid
+
+			if seq ~= nil then
+				seqid = ply:LookupSequence(seq)
+			else
+				return
+			end
+
+			if w.m_iState == STATE_WINDUP then -- Feint init
+				w.m_flWeight = math.Approach( w.m_flWeight, 1, incr)
+				ply:AddVCDSequenceToGestureSlot(0, seqid, 0, true)
+				ply:AnimSetGestureWeight(0, math.ease.InOutQuad(w.m_flWeight))
+				ply:AnimSetGestureWeight(1, 1 - math.ease.InOutQuad(w.m_flWeight))
+			elseif w.m_iState == STATE_ATTACK then
+				w.m_flWeight = 0
+			elseif w.m_iState == STATE_RECOVERY then
+				w.m_flWeight = 0
+				w.m_flWeightRecovery = math.Approach( w.m_flWeightRecovery, 0, incr)
+				ply:AddVCDSequenceToGestureSlot(0, seqid, w.m_flCycle, true)
+				ply:AnimSetGestureWeight(0, math.ease.InOutCubic(w.m_flWeightRecovery))
+			elseif w.m_flWeight > 0 then -- Optimization
+				if w.m_iState == STATE_IDLE then -- Feint cancel
+					w.m_flWeight = math.Approach( w.m_flWeight, 0, incr)
+					ply:AddVCDSequenceToGestureSlot(0, seqid, 0, true)
 					ply:AnimSetGestureWeight(0, w.m_flWeight)
 				end
-			elseif w.m_iState == STATE_WINDUP then
-				w.m_flWeight = w.m_flWeight or 0
-				local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
-				w.m_flWeight = math.Approach( w.m_flWeight, 1, FrameTime() * w.Windup * 2)
-				if seq ~= nil then
-					ply:AddVCDSequenceToGestureSlot(0, ply:LookupSequence(seq), 0, true)
-					ply:AnimSetGestureWeight(0, math.ease.InOutQuad(w.m_flWeight))
-				end
-			elseif w.m_flWeight > 0 then
-				if w.m_iState == STATE_IDLE then
-					w.m_flWeight = w.m_flWeight or 0
-					local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
-					w.m_flWeight = math.Approach( w.m_flWeight, 0, FrameTime() * w.Windup * 2)
-					if seq ~= nil then
-						ply:AddVCDSequenceToGestureSlot(0, ply:LookupSequence(seq), 0, true)
-						ply:AnimSetGestureWeight(0, w.m_flWeight)
-					end
-				end
 			else
-				-- ply:AnimSetGestureWeight(0, 1)
+				ply:AnimResetGestureSlot(0) -- wip Fixes attack anim coming out of nowhere
+				ply:AnimSetGestureWeight(0, 1) -- Needed for animations like parry
 			end
 		end 
-	end
-end
-
-do -- Does this even do anything?
-	local overridet = {
-		"GrabEarAnimation",
-		"MouthMoveAnimation",
-		"HandlePlayerDriving",
-		"HandlePlayerLanding",
-		"HandlePlayerSwimming",
-		"HandlePlayerVaulting",
-		"HandlePlayerNoClipping",
-		"HandlePlayerJumping"
-	}
-	for _, k in ipairs(overridet) do
-		GM[k] = function() end
 	end
 end

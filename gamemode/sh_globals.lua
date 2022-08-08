@@ -2,7 +2,7 @@
 WEP_STATE = 0
 WEP_ANIM = 1
 
--- Weapon states, to keep in mind, some conditions use >=
+-- Weapon states, some conditions use >= to keep in mind
 STATE_IDLE = 1
 STATE_PARRY = 2
 STATE_WINDUP = 3
@@ -16,6 +16,9 @@ ANIM_UPPERCUT = 3
 ANIM_UNDERCUT = 4
 ANIM_THRUST = 5
 ANIM_KICK = 6 -- one day...
+
+-- Used for bindings
+OTHER_FEINT = 1
 
 -- Used for debugging
 DBG_NCALLS = 0
@@ -31,7 +34,7 @@ DBG_STATE = {
 	[STATE_PARRY] = "state_parry",
 	[STATE_WINDUP] = "state_windup",
 	[STATE_RECOVERY] = "state_recovery",
-	[STATE_ATTACK] = "STATE_ATTACK"
+	[STATE_ATTACK] = "state_attack"
 }
 
 -- Used for displaying emotes

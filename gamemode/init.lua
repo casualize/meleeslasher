@@ -21,8 +21,8 @@ function GM:StaminaUpdate(ent, i, punish)
 			ent.m_iStamina = math.Clamp(i, 0, ent.m_iMaxStamina)
 		
 			net.Start("ms_stamina_update")
-				net.WriteUInt(ent.m_iStamina,8)
-				net.WriteEntity(ent)
+				net.WriteUInt(ent:UserID(), 16)
+				net.WriteUInt(ent.m_iStamina, 8)
 			net.Broadcast()
 		end
 	end
@@ -32,10 +32,8 @@ end
 function GM:AddNetworkStrings()
 	util.AddNetworkString("ms_tracer_server")
 	util.AddNetworkString("ms_stamina_update")
-	util.AddNetworkString("ms_state_update")
 	util.AddNetworkString("ms_player_inflict")
-	util.AddNetworkString("ms_ea_update")
-	util.AddNetworkString("ms_bind_attack")
+	util.AddNetworkString("ms_anim_queue")
 	util.AddNetworkString("ms_bind_other")
 	util.AddNetworkString("ms_emote") -- sv/cl
 	util.AddNetworkString("ms_damageindicator")
@@ -118,25 +116,27 @@ function GM:Think()
 	end
 end
 
-net.Receive("ms_bind_attack", function(_, p)
+net.Receive("ms_anim_queue", function(_, p)
 	local a_state = net.ReadUInt(3)
 	local flip = net.ReadBool()
-	if IsValid(p:GetActiveWeapon()) then
-		p:GetActiveWeapon():m_fWindup(a_state, false, flip)
+	local w = p:GetActiveWeapon()
+	if IsValid(w) then
+		w.m_iQueuedAnim = a_state
+		w.m_bQueuedFlip = flip
 	end
 end)
 net.Receive("ms_bind_other", function(_, p)
-	local bind = net.ReadUInt(3)
-	if IsValid(p:GetActiveWeapon()) then
-		if bind == 1 then
-			p:GetActiveWeapon():Feint()
+	local w = p:GetActiveWeapon()
+	if IsValid(w) then
+		if net.ReadUInt(3) == OTHER_FEINT then
+			w:Feint()
 		end
 	end
 end)
 net.Receive("ms_emote", function(_, p)
 	local e = net.ReadUInt(8)
 	if IsValid(p:GetActiveWeapon()) and p:GetActiveWeapon().m_iState == STATE_IDLE then
-		p:AddVCDSequenceToGestureSlot(0, p:LookupSequence(DEF_EMOTE[e]), 0, true) -- Synchronize hitboxes with gestures
+		p:AddVCDSequenceToGestureSlot(GESTURE_SLOT_VCD, p:LookupSequence(DEF_EMOTE[e]), 0, true) -- Synchronize hitboxes with gestures
 		net.Start("ms_emote")
 			net.WriteUInt(p:UserID(), 16)
 			net.WriteUInt(e, 8)

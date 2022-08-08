@@ -23,7 +23,6 @@ SWEP.Range = 48 -- 36
 SWEP.Lunge = 40 -- (u/s)
 SWEP.Release = 0.002 -- how fast angle degree ticks, swep.release*swep.angle for time taken swinging 
 SWEP.Windup = (2/3)
-SWEP.RiposteMulti = (2/3) -- Used to multiply windup on riposte
 SWEP.Recovery = (2/3)
 SWEP.TurnCap = 200 -- 150
 SWEP.AngleStrike = 235 -- Should deprecate this into sequence duration multiplier or something, this field is temporary
@@ -37,17 +36,20 @@ SWEP.FeintDrain = 7
 SWEP.m_iState = STATE_IDLE -- sv/cl
 SWEP.m_iAnim = ANIM_NONE -- sv/cl
 SWEP.m_iQueuedAnim = ANIM_NONE -- sv
-SWEP.m_bRiposting = false
+SWEP.m_bRiposting = false -- sv/cl
 SWEP.m_bFlip = false -- sv/cl
 SWEP.m_iFlip = 1 -- cl
-SWEP.m_flWindupFinal = SWEP.Windup
 SWEP.m_tFilter = {} -- sv
-SWEP.m_flCycle = 0.0
 
-SWEP.m_flPrevParry = 0.0
-SWEP.m_flPrevRecovery = 0.0
-SWEP.m_flPrevFlinch = 0.0
 SWEP.m_flPrevState = 0.0
+SWEP.m_flPrevParry = 0.0
+SWEP.m_flPrevRiposte = 0.0
+SWEP.m_flPrevAttack = 0.0
+SWEP.m_flPrevFeint = 0.0
+
+SWEP.m_flCycle = 0.0
+SWEP.m_flWeight = 0.0
+SWEP.m_flWeightRecovery = 0.0
 
 SWEP.slashtag = 0 -- might get deprecated
 SWEP.m_soundRelease = {"vo/npc/male01/pain04", "vo/npc/male01/pain03"} -- might get deprecated
@@ -78,12 +80,6 @@ end
 --]]
 ------------------------------------
 
+-- Here so it disables the annoying clicking sound
 function SWEP:PrimaryAttack()
-	--if CLIENT then return end -- Gets rid of the clicking sound
-	--self:m_fWindup(ANIM_STRIKE,false)
-end
-
-function SWEP:SecondaryAttack()
-	if CLIENT then return end
-	self:Parry()
 end

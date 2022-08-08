@@ -8,13 +8,13 @@ include("vgui/emotepanel.lua")
 include("vgui/damageindicator.lua")
 
 ATTACK_BIND = {
-	[ANIM_STRIKE]= "+attack",
+	-- [ANIM_STRIKE]= "+attack",
 	[ANIM_UPPERCUT]= "invnext",
 	[ANIM_UNDERCUT]= "+zoom",
 	[ANIM_THRUST]= "invprev"
 }
 OTHER_BIND = {
-	[1] = "+menu"
+	[OTHER_FEINT] = "+menu" -- Feint
 }
 CLIENT_BIND = {
 	[1] = "gmod_undo"
@@ -44,33 +44,29 @@ net.Receive("ms_tracer_server", function()
 end)
 
 net.Receive("ms_stamina_update",function()
-	local i = net.ReadUInt(8)
-	local p = net.ReadEntity()
-	p.m_iStamina = i
-end)
-
-net.Receive("ms_state_update", function()
-	local p = net.ReadUInt(16) -- UserID
-	local w = Player(p):GetActiveWeapon()
-	if w then
-		w.m_flPrevState = CurTime()
-		w.m_iState		= net.ReadUInt(3)
-		w.m_iAnim		= net.ReadUInt(3)
-		w.m_bRiposting	= net.ReadBool()
-		w.m_iFlip		= net.ReadBool() and -1 or 1 -- Converts from bool to number for arithmetic purpose
-		AnimInit(Player(p))
-	end
+	Player(net.ReadUInt(16)).m_iStamina = net.ReadUInt(8)
 end)
 
 net.Receive("ms_player_inflict", function()
-	local p = net.ReadUInt(16) -- UserID
-	Player(p):AnimRestartGesture(GESTURE_SLOT_FLINCH, ACT_FLINCH_PHYSICS, true)
+	local p = Player(net.ReadUInt(16)) -- UserID
+
+	p:AnimResetGestureSlot(0)
+	p:AnimRestartGesture(GESTURE_SLOT_FLINCH, ACT_FLINCH_PHYSICS, true)
+
+	local w = p:GetActiveWeapon()
+	if p == LocalPlayer() and IsValid(w) then
+		w.m_flPrevParry = 0.0
+
+		if w.m_iState == STATE_PARRY then
+			print("RED!", (CurTime() - net.ReadFloat()) * 1000, "ms late")
+		end
+	end
 end)
 
 net.Receive("ms_emote", function()
-	local p = net.ReadUInt(16) -- UserID
+	local p = Player(net.ReadUInt(16)) -- UserID
 	local e = net.ReadUInt(8)
-	Player(p):AddVCDSequenceToGestureSlot(0, Player(p):LookupSequence(DEF_EMOTE[e]), 0, true)
+	p:AddVCDSequenceToGestureSlot(GESTURE_SLOT_VCD, p:LookupSequence(DEF_EMOTE[e]), 0, true)
 end)
 
 DMG_DATA = {}
@@ -93,10 +89,6 @@ net.Receive("ms_damageindicator", function()
 	table.insert(DMG_DATA, dmgtable) -- Push to top
 end)
 
-net.Receive("ms_ea_update", function()
-	LocalPlayer():GetActiveWeapon().viewangles = LocalPlayer():EyeAngles()
-end)
-
 function GM:InitPostEntity()
 	local p = LocalPlayer()
 
@@ -114,51 +106,7 @@ function GM:InitPostEntity()
 	hook.Add("CreateMove", "DuckJumpAlter", DuckJumpAlter)
 end
 
-function AnimInit(p)
-	local w = p:GetActiveWeapon()
-	if IsValid(w) then
-		-- AddVCDSequenceToGestureSlot method is very limited
-		local seq = DEF_ANM_SEQUENCES[w.m_iState][w.m_iAnim]
-		if seq ~= nil then
-			if seq ~= "CONTINUE" then
-				p:AddVCDSequenceToGestureSlot(0, p:LookupSequence(seq), 0, true)
-			end
-		else
-			p:AnimResetGestureSlot(0)
-		end
-
-		-- For UpdateAnimation
-		for k in ipairs(w.m_tCurTimeBank) do
-			if w.m_iState == k then
-				w.m_tCurTimeBank[k] = w.m_flPrevState
-				break
-			end
-		end
-		if w.m_iState == STATE_RECOVERY then
-			w.m_flCycle = math.Clamp((w.m_tCurTimeBank[STATE_RECOVERY] - w.m_tCurTimeBank[STATE_ATTACK] ) / (w.Release * w.AngleStrike), 0, 1)
-			w.m_flWeight = 1
-		elseif w.m_iState == STATE_WINDUP then
-			w.m_flCycle = 0
-			w.m_flWeight = 0
-		elseif w.m_iState == STATE_IDLE then
-			w.m_flWeight = w.m_tCurTimeBank[STATE_WINDUP] > w.m_tCurTimeBank[STATE_RECOVERY] and math.Clamp((w.m_tCurTimeBank[STATE_IDLE] - w.m_tCurTimeBank[STATE_WINDUP] ) / w.Windup, 0, 1) or 0
-		end
-
-		if w.m_iFlip ~= 1 then
-			p:EnableMatrix ("RenderMultiply", Matrix({{1, 0, 0, 0},{0, -1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}}))
-		else
-			p:DisableMatrix("RenderMultiply")
-		end
-	end
-end
-
 do
-	local camt = {
-		origin = nil,
-		angles = nil,
-		fov = CL_FOV:GetInt(),
-		drawviewer = true
-	}
 	-- Move this to global
 	-- Must be in order
 	local tglfieldt = {
@@ -184,21 +132,33 @@ do
 
 		-- Binds that get sent to server
 		for k, v in pairs(ATTACK_BIND) do -- Not sequential
-			if string.find(bind, v) then
-				net.Start("ms_bind_attack")
-					net.WriteUInt(k, 3)
-					net.WriteBool(p:GetActiveWeapon().m_bFlip)
-				net.SendToServer()
+			if bind == v then
+				local w = LocalPlayer():GetActiveWeapon()
+				--if IsValid(w) and w.m_iAnim == ANIM_NONE then
+					w:Queue(k, w.m_bFlip)
+				--end
 			end
 		end
+		--[[
 		for k, v in ipairs(OTHER_BIND) do
-			if bind == v then -- string.find(bind,v) then -- This messes with +menu and +menu_context
+			if bind == v then
 				net.Start("ms_bind_other")
 					net.WriteUInt(k, 3)
 				net.SendToServer()
 			end
+		end]]
+		if bind == "+menu" then
+			net.Start("ms_bind_other")
+				net.WriteUInt(OTHER_FEINT, 3)
+			net.SendToServer()
+			--[[
+			local w = LocalPlayer():GetActiveWeapon()
+			if IsValid(w) then
+				w:Feint()
+			end
+			]]
 		end
-		-- Binds that toggle fields in client
+		-- Binds that toggle fields (clientside)
 		for k, v in ipairs(tglfieldt[1]) do
 			if bind == v then
 				tglfieldt[2][k][tglfieldt[3][k]] = not tglfieldt[2][k][tglfieldt[3][k]]
@@ -226,6 +186,12 @@ do
 		end
 	end
 
+	local camt = {
+		origin = nil,
+		angles = nil,
+		fov = CL_FOV:GetInt(),
+		drawviewer = true
+	}
 	local attachment = {
 		[1] = "ValveBiped.Bip01_Head1",
 		[2] = "ValveBiped.Bip01_Neck1",
@@ -265,7 +231,7 @@ do
 				end
 			end
 			if attachid[1] ~= -1 then
-				camt.origin = _p:GetBonePosition(attachid[1]) + Angle(0, _a[2], 0):Forward()*-2
+				camt.origin = _p:GetBonePosition(attachid[1]) + Angle(0, _a[2], 0):Forward()*-2 + Angle(0, _a[2], 0):Up()*2
 				camt.angles = nil
 			end
 		end
@@ -332,7 +298,7 @@ function GM:PlayerTick(p, mv) -- Provides CMoveData context, works only on maxpl
 	p:GetActiveWeapon().m_bFlip = mv:KeyDown(IN_RELOAD)
 end
 
-local function CL_TRACER_DRAW(...) -- Gets called multiple times if maxplayers > 1, bug
+function CL_TRACER_DRAW(...) -- Gets called multiple times if maxplayers > 1, bug
 	local vargt = {...}
 	for _, v in ipairs(vargt) do
 		table.insert(CL_LINE_DATA, v)
@@ -351,31 +317,7 @@ hook.Add("CalcViewModelView","ms_SetTarget", function()
 end)
 
 hook.Add("PostPlayerDraw", "ms_Playermodels", function(p) 
-	if IsValid(p:GetActiveWeapon()) then
 
-		local w = p:GetActiveWeapon()
-		local ea = p:EyeAngles()
-
-		--DT testing
-		--w.m_iState = w:GetDTInt(WEP_STATE)
-		--w.m_iAnim = w:GetDTInt(WEP_ANIM)
-		--w.m_bRiposting = w:GetDTBool(0)
-
-		-- Inverts poseparams and texture normals because pmodel gets enablematrix'd with a negative value
-		p.RenderOverride = function(self)
-			if w.m_iFlip ~= 1 then
-				render.CullMode(MATERIAL_CULLMODE_CW)
-				for _, v in ipairs({"aim_yaw", "move_y"}) do
-					local min, max = self:GetPoseParameterRange(self:LookupPoseParameter(v))
-					self:SetPoseParameter(v, min+max - math.Remap(self:GetPoseParameter(v), 0, 1, min, max))
-				end
-				self:DrawModel()
-				render.CullMode(MATERIAL_CULLMODE_CCW)
-			else
-				self:DrawModel()
-			end
-		end
-	end
 end)
 
 function GM:BuildUserInterface()
