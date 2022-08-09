@@ -135,12 +135,11 @@ function ZSBOTS.StartCommand(pl, cmd)
 		local meleerange = 128*128
 		if targetdist then
 			if targetdist <= meleerange then
-				if (targetstate == STATE_IDLE or targetstate == STATE_RECOVERY or targetstate == STATE_WINDUP)  then
+				if (targetstate == STATE_IDLE or targetstate == STATE_WINDUP)  then
 					if wep.m_iState == STATE_IDLE then
-						if pl.m_flPrevFeint + 1.2 <= CurTime() then
-							pl.m_aAttack = Angle() -- Angle(math.random(-30,30),math.random(-30,30),0)
-							wep.m_iQueuedAnim = math.random(2, 5)
-						end
+						pl.m_aAttack = Angle() -- Angle(math.random(-30,30),math.random(-30,30),0)
+						wep.m_iQueuedAnim = math.random(2, 5)
+						wep.m_bQueuedFlip = math.random() >= 0.5
 					end
 					if wep.m_iState == STATE_WINDUP then
 						viewang = (destination - mypos):Angle():__add(pl.m_aAttack)
@@ -149,8 +148,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 							pl.m_aAttack = Angle() -- Angle(math.random(-30,30),math.random(-30,30),0)
 						end
 						if pl.m_flNextFeint <= CurTime() then
-							pl.m_flNextFeint = CurTime() + math.Rand(1,2)
-							pl.m_flPrevFeint = CurTime()
+							pl.m_flNextFeint = CurTime() + math.Rand(2, 6)
 							wep:Feint()
 						end
 					end
@@ -166,6 +164,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 				end
 				if wep.m_iState == STATE_PARRY then
 					wep.m_iQueuedAnim = math.random(2, 5)
+					wep.m_bQueuedFlip = math.random() >= 0.5 
 				elseif wep.m_iState == STATE_ATTACK then
 					buttons = bit.bor(buttons, IN_FORWARD)
 					cmd:SetForwardMove(10000)
@@ -325,7 +324,6 @@ function ZSBOTS:CreateBot(teamid, name)
 		nb.PL = pl
 
 		pl.m_flNextFeint = 0.0
-		pl.m_flPrevFeint = 0.0
 		pl.m_flDebugNext = 0.0
 		pl.m_aAttack = Angle()
 		

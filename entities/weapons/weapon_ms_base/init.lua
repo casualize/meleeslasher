@@ -21,22 +21,23 @@ function SWEP:Queue(ianim, bflip)
 	local o = self:GetOwner()
 	o:AnimResetGestureSlot(GESTURE_SLOT_VCD) -- Emotes
 
-	self.m_iQueuedAnim = ianim
+	self.m_iQueuedAnim = ianim -- ?
 	self.m_bQueuedFlip = bflip
-
+	
 	-- Note, this still could pass ANIM_NONE
 	if (self.m_iState == STATE_IDLE and self.m_flPrevState + self.Windup <= CurTime() ) or self.m_bRiposting then
-		local flWindupFinal = self.Windup
 		
 		if self.m_bRiposting then
 			self:EmitSound("physics/metal/metal_solid_impact_bullet4.wav", 75, math.random(50, 100), 1)
 		end
+
+		self.m_bFlip = bflip
 		self:StateUpdate(o, STATE_WINDUP, ianim, self.m_bRiposting, bflip)
 		GAMEMODE:StaminaUpdate(o, nil, true)
 		
 		o:EmitSound("npc/vort/claw_swing" .. math.random(2) .. ".wav", 75, 125, 1)
 		
-		self.m_flPrevAttack = CurTime() + self.Windup
+		self.m_flNextAttack = CurTime() + self.Windup
 	end
 end
 
@@ -63,16 +64,13 @@ function SWEP:DamageSimple(iAng, ent, multi)
 	ent:TakeDamageInfo(d)
 end
 
-function SWEP:Attack(bflip)
+function SWEP:Attack()
 	local o = self:GetOwner()
 	self.m_tFilter[#self.m_tFilter + 1] = o
 	
 	self.slashtag = self:EntIndex()
 	self.m_iAngleFinal = self.m_iAnim ~= ANIM_THRUST and self.AngleStrike or 90 -- Call this elsewhere
 	self.m_iIncrMul = math.floor(engine.TickInterval() / self.Release + 0.5) -- Call this elsewhere
-
-	self.m_iQueuedAnim = ANIM_NONE
-	self.m_bQueuedFlip = false
 	
 	o:EmitSound(self.m_soundRelease[math.random(#self.m_soundRelease)] .. ".wav", 75, math.random(80, 100), 1)
 	self:EmitSound("npc/vort/claw_swing" .. math.random(2) .. ".wav", 75, 80, 1)
@@ -87,7 +85,11 @@ function SWEP:Attack(bflip)
 	if not self.m_iAttachID then
 		print("ValveBiped.Anim_Attachment_RH wasn't found!")
 	end
-	self:StateUpdate(o, STATE_ATTACK, self.m_iAnim, self.m_bRiposting, bflip) -- Network message will get discarded if the first iteration of trace hits world(?)
+
+	self:StateUpdate(o, STATE_ATTACK, self.m_iAnim, self.m_bRiposting, self.m_bFlip) -- Network message will get discarded if the first iteration of trace hits world(?)
+
+	self.m_iQueuedAnim = ANIM_NONE
+	self.m_bQueuedFlip = false
 end
 
 do
@@ -97,18 +99,14 @@ do
 	function SWEP:Think()
 		local o = self:GetOwner()
 		if self.m_iState == STATE_IDLE then
-			--[[
-			if self.m_iAnim ~= ANIM_NONE and self.m_flPrevState + self.Recovery <= CurTime() then
-				self:StateUpdate()
-				self.m_iAnim = ANIM_NONE
+			--[[if self.m_flPrevState + self.Recovery >= CurTime() then
 				self.m_iQueuedAnim = ANIM_NONE
-			end
-			]]
+			end]]
 			if self.m_iQueuedAnim ~= ANIM_NONE then
 				self:Queue(self.m_iQueuedAnim, self.m_bQueuedFlip)
 			end
-		elseif self.m_iState == STATE_WINDUP and self.m_flPrevAttack <= CurTime() then
-			self:Attack(self.m_bQueuedFlip)
+		elseif self.m_iState == STATE_WINDUP and self.m_flNextAttack <= CurTime() then
+			self:Attack()
 		elseif self.m_iState == STATE_PARRY then
 			if self.m_flPrevRiposte >= CurTime() then
 				if self.m_iQueuedAnim ~= ANIM_NONE then
@@ -117,13 +115,10 @@ do
 				end
 			elseif self.m_flPrevState + (1/3) <= CurTime() then
 				if not self.m_bRiposting then
-					self:StateUpdate(o, STATE_RECOVERY, ANIM_NONE)
+					self.m_iQueuedAnim = ANIM_NONE
+					self:StateUpdate(o, STATE_IDLE, ANIM_NONE, self.m_bRiposting, self.m_bFlip)
 					o:EmitSound("physics/flesh/flesh_impact_hard2.wav", 75, 50, 1)
 				end
-			end
-		elseif self.m_iState == STATE_RECOVERY then
-			if self.m_flPrevState + self.Recovery <= CurTime() then
-				self:StateUpdate(o, STATE_IDLE, ANIM_NONE)
 			end
 		elseif self.m_iState == STATE_ATTACK then
 			for iAng = 1, self.m_iIncrMul do
@@ -195,7 +190,7 @@ do
 					end
 					SV_TRACER_DRAW(st, en, idx, self.slashtag)
 				end
-				if self.m_nThink + iAng >= self.m_iAngleFinal then
+				if self.m_nThink + iAng > self.m_iAngleFinal then
 					self:AttackFinish()
 					GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
 					break
@@ -218,8 +213,6 @@ do
 			[ANIM_UNDERCUT] = "windup_undercut",
 			[ANIM_THRUST] = "windup_thrust"
 		},
-		-- STATE_RECOVERY will not have anims for now, also can't set its anims to ANIM_NONE due to it still being used in pmodel lua anims
-		[STATE_RECOVERY] = {nil},
 		[STATE_ATTACK] = {
 			[ANIM_NONE] = nil,
 			[ANIM_STRIKE] = "attack_strike",
@@ -233,8 +226,11 @@ do
 		local w = p:GetActiveWeapon()
 		if IsValid(w) then
 			w.m_flPrevState = CurTime()
-			w.m_iState = s or w.m_iState
-			w.m_iAnim = a or w.m_iAnim
+
+			w.m_iState = s
+			w.m_iAnim = a
+			w.m_bRiposting = r
+			w.m_bFlip = f
 
 			w:SetState(s or w.m_iState)
 			w:SetAnim(a or w.m_iAnim)
@@ -246,16 +242,10 @@ do
 				print(DBG_NCALLS, p, DBG_STATE[w.m_iState], DBG_ANIM[w.m_iAnim], r and "riposte" or "")
 			end
 
-			if w.m_iState == STATE_RECOVERY then
-				-- Rewrite this if we bother implementing combo'ing
-				w.m_iQueuedAnim = ANIM_NONE
-				w.m_iQueuedFlip = false
-			end
-
 			-- Synchronize pmodel animations for server
 			local seq = DEF_ANM_SEQUENCES[w.m_iState][w.m_iAnim]
-			if seq ~= nil and seq ~= "CONTINUE" then
-				p:AddVCDSequenceToGestureSlot(0, p:LookupSequence(seq), 0, true)
+			if seq ~= nil  then
+				p:AddVCDSequenceToGestureSlot(0, p:LookupSequence(seq .. (f and "_flip" or "")), 0, true)
 			end
 
 			-- Viewmodel stuff, unused
@@ -273,11 +263,10 @@ end
 
 function SWEP:AttackFinish(tracerst, traceren, tracertag)
 	local o = self:GetOwner()
-	
-	self.m_flPrevRecovery = CurTime() + self.Recovery
+
 	self.m_nThink = 0
 	
-	self:StateUpdate(o, STATE_RECOVERY, self.m_iAnim, false, self.m_bFlip)
+	self:StateUpdate(o, STATE_IDLE, self.m_iAnim, false, self.m_bFlip)
 
 	table.Empty(self.m_tFilter)
 	self.m_bRiposting = false
@@ -297,7 +286,6 @@ function SWEP:Flinch(p)
 	if w.m_bRiposting then return end
 	
 	w.m_flPrevParry = 0.0
-	w.m_flPrevRecovery = CurTime() + self.Recovery
 
 	w.m_iQueuedAnim = ANIM_NONE
 	w.m_bQueuedFlip = false
@@ -309,7 +297,7 @@ function SWEP:Flinch(p)
 		net.WriteFloat(CurTime())
 	net.Broadcast()
 
-	self:StateUpdate(p, STATE_RECOVERY, ANIM_NONE)
+	self:StateUpdate(p, STATE_IDLE, ANIM_NONE, false, w.m_bFlip)
 end
 
 function SWEP:Riposte(p)
@@ -318,7 +306,6 @@ function SWEP:Riposte(p)
 	GAMEMODE:StaminaUpdate(p,p.m_iStamina - 7,true)
 	
 	local w = p:GetActiveWeapon()
-	w.m_flPrevRecovery = 0.0
 	w.m_flPrevParry = 0.0
 	w.m_flPrevRiposte = CurTime() + 1/6
 	w:SetSuccess(not w:GetSuccess()) -- For cl anim
@@ -330,7 +317,7 @@ function SWEP:SecondaryAttack()
 end
 
 function SWEP:Parry()
-	if self.m_flPrevParry <= CurTime() and self.m_iState <= STATE_RECOVERY then
+	if self.m_flPrevParry <= CurTime() and (self.m_iState == STATE_IDLE or self.m_iState == STATE_WINDUP) then
 		local o = self:GetOwner()
 
 		-- Reset fields
@@ -350,7 +337,7 @@ function SWEP:Parry()
 				GAMEMODE:StaminaUpdate(o, nil, true)
 			end
 
-			self:StateUpdate(o, STATE_PARRY, ANIM_NONE)
+			self:StateUpdate(o, STATE_PARRY, ANIM_NONE, false, self.m_bFlip)
 		end
 	end
 end
@@ -358,11 +345,8 @@ end
 function SWEP:Feint()
 	if self.m_iState == STATE_WINDUP and not self.m_bRiposting and self:GetOwner().m_iStamina ~= 0 then
 		local o = self:GetOwner()
-
 		self.m_iQueuedAnim = ANIM_NONE
-		self.m_flPrevFeint = CurTime() + CurTime() - self.m_flPrevState
-		print(self.m_flPrevFeint)
-		self:StateUpdate(o, STATE_IDLE)
+		self:StateUpdate(o, STATE_IDLE, self.m_iAnim, false, self.m_bFlip)
 		GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.FeintDrain, true)
 	end
 end

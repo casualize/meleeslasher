@@ -134,19 +134,11 @@ do
 		for k, v in pairs(ATTACK_BIND) do -- Not sequential
 			if bind == v then
 				local w = LocalPlayer():GetActiveWeapon()
-				--if IsValid(w) and w.m_iAnim == ANIM_NONE then
-					w:Queue(k, w.m_bFlip)
-				--end
+				if IsValid(w) then
+					w:Queue(k, w.m_bMVDATA)
+				end
 			end
 		end
-		--[[
-		for k, v in ipairs(OTHER_BIND) do
-			if bind == v then
-				net.Start("ms_bind_other")
-					net.WriteUInt(k, 3)
-				net.SendToServer()
-			end
-		end]]
 		if bind == "+menu" then
 			net.Start("ms_bind_other")
 				net.WriteUInt(OTHER_FEINT, 3)
@@ -295,7 +287,7 @@ concommand.Add("ms_help", function()
 end)
 
 function GM:PlayerTick(p, mv) -- Provides CMoveData context, works only on maxplayers > 1
-	p:GetActiveWeapon().m_bFlip = mv:KeyDown(IN_RELOAD)
+p:GetActiveWeapon().m_bMVDATA = mv:KeyDown(IN_RELOAD)
 end
 
 function CL_TRACER_DRAW(...) -- Gets called multiple times if maxplayers > 1, bug
@@ -387,7 +379,7 @@ hook.Add("CreateMove", "ms_Turncap", function(cmd)
 	local w = LocalPlayer():GetActiveWeapon()
 	local viewangles = cmd:GetViewAngles()
 	
-	if IsValid(w) and w.viewangles and w.m_iState ~= STATE_RECOVERY and w.m_iState ~= STATE_IDLE then
+	if IsValid(w) and w.viewangles and w.m_iState ~= STATE_IDLE then
 		do
 			local maxdiff = FrameTime() * w.TurnCap
 			local mindiff = -maxdiff

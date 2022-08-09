@@ -53,17 +53,16 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 	if CLIENT then
 		local w = ply:GetActiveWeapon()
 		if IsValid(w) and w.m_flWeight then
-			local multi = 2
-			local incr = FrameTime() * w.Windup * multi -- not frametime??!
+			local incr = FrameTime() / w.Windup
 			local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
 			local seqid
 
 			if seq ~= nil then
-				seqid = ply:LookupSequence(seq)
+				seqid = ply:LookupSequence(seq .. (w.m_bFlip and "_flip" or ""))
 			else
 				return
 			end
-
+			
 			if w.m_iState == STATE_WINDUP then -- Feint init
 				w.m_flWeight = math.Approach( w.m_flWeight, 1, incr)
 				ply:AddVCDSequenceToGestureSlot(0, seqid, 0, true)
@@ -71,16 +70,18 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 				ply:AnimSetGestureWeight(1, 1 - math.ease.InOutQuad(w.m_flWeight))
 			elseif w.m_iState == STATE_ATTACK then
 				w.m_flWeight = 0
-			elseif w.m_iState == STATE_RECOVERY then
-				w.m_flWeight = 0
-				w.m_flWeightRecovery = math.Approach( w.m_flWeightRecovery, 0, incr)
-				ply:AddVCDSequenceToGestureSlot(0, seqid, w.m_flCycle, true)
-				ply:AnimSetGestureWeight(0, math.ease.InOutCubic(w.m_flWeightRecovery))
-			elseif w.m_flWeight > 0 then -- Optimization
-				if w.m_iState == STATE_IDLE then -- Feint cancel
+			elseif w.m_iState == STATE_IDLE then
+				if w.m_iPrevState == STATE_WINDUP and w.m_flWeight > 0 then -- Feint cancel
 					w.m_flWeight = math.Approach( w.m_flWeight, 0, incr)
 					ply:AddVCDSequenceToGestureSlot(0, seqid, 0, true)
-					ply:AnimSetGestureWeight(0, w.m_flWeight)
+					ply:AnimSetGestureWeight(0, math.ease.InOutQuint(w.m_flWeight))
+				elseif w.m_iPrevState == STATE_ATTACK then -- Recovery
+					if w.m_flPrevState + w.Recovery >= CurTime() then
+						w.m_flWeight = 0
+						w.m_flWeightRecovery = math.Approach( w.m_flWeightRecovery, 0, incr)
+						ply:AddVCDSequenceToGestureSlot(0, seqid, w.m_flCycle, true)
+						ply:AnimSetGestureWeight(0, math.ease.InOutCubic(w.m_flWeightRecovery))
+					end
 				end
 			else
 				ply:AnimResetGestureSlot(0) -- wip Fixes attack anim coming out of nowhere

@@ -25,8 +25,7 @@ SWEP.Release = 0.002 -- how fast angle degree ticks, swep.release*swep.angle for
 SWEP.Windup = (2/3)
 SWEP.Recovery = (2/3)
 SWEP.TurnCap = 200 -- 150
-SWEP.AngleStrike = 235 -- Should deprecate this into sequence duration multiplier or something, this field is temporary
-SWEP.AngleStrikeOffset = 45
+SWEP.AngleStrike = 230 -- 235 -- Should deprecate this into sequence duration multiplier or something, this field is temporary
 SWEP.Cleave = true
 SWEP.GlanceAngles = -1 --8 -- Temporary anti-backswing
 SWEP.StaminaDrain = 9
@@ -38,13 +37,12 @@ SWEP.m_iAnim = ANIM_NONE -- sv/cl
 SWEP.m_iQueuedAnim = ANIM_NONE -- sv
 SWEP.m_bRiposting = false -- sv/cl
 SWEP.m_bFlip = false -- sv/cl
-SWEP.m_iFlip = 1 -- cl
 SWEP.m_tFilter = {} -- sv
 
 SWEP.m_flPrevState = 0.0
 SWEP.m_flPrevParry = 0.0
 SWEP.m_flPrevRiposte = 0.0
-SWEP.m_flPrevAttack = 0.0
+SWEP.m_flNextAttack = 0.0
 SWEP.m_flPrevFeint = 0.0
 
 SWEP.m_flCycle = 0.0
@@ -59,7 +57,6 @@ if CLIENT then
 		[STATE_IDLE] = 0.0,
 		[STATE_PARRY] = 0.0,
 		[STATE_WINDUP] = 0.0,
-		[STATE_RECOVERY] = 0.0,
 		[STATE_ATTACK] = 0.0,
 	}
 end
