@@ -3,9 +3,11 @@ include("sh_globals.lua")
 include("sh_animations.lua")
 include("player_movement/shared.lua")
 include("player_movement/cl_init.lua")
+include("cl_scoreboard.lua")
 include("vgui/progressbars.lua")
 include("vgui/emotepanel.lua")
 include("vgui/damageindicator.lua")
+include("vgui/teamselect.lua")
 
 ATTACK_BIND = {
 	-- [ANIM_STRIKE]= "+attack",
@@ -50,7 +52,6 @@ end)
 net.Receive("ms_player_inflict", function()
 	local p = Player(net.ReadUInt(16)) -- UserID
 
-	p:AnimResetGestureSlot(0)
 	p:AnimRestartGesture(GESTURE_SLOT_FLINCH, ACT_FLINCH_PHYSICS, true)
 
 	local w = p:GetActiveWeapon()
@@ -316,6 +317,7 @@ function GM:BuildUserInterface()
 	self.ProgressBars = vgui.Create("ProgressBars")
 	self.EmotePanel = vgui.Create("EmotePanel")
 	self.DamageIndicator = vgui.Create("DamageIndicator")
+	self.TeamSelect = vgui.Create("TeamSelect")
 end
 
 function GM:Initialize()
@@ -368,7 +370,8 @@ do
 		["CHudAmmo"] = true,
 		["CHudSecondaryAmmo"] = true,
 		["CHudWeaponSelection"] = true,
-		["CHudGMod"] = true -- Disables hudpaint hook
+		["CHudGMod"] = true, -- Disables hudpaint hook
+		["CHudDamageIndicator"] = true
 	}
 	hook.Add("HUDShouldDraw", "ms_HideHUD", function(name)
 		return forbidden_huds[name] and false

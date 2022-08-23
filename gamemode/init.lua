@@ -4,9 +4,11 @@ AddCSLuaFile("sh_globals.lua")
 AddCSLuaFile("sh_animations.lua")
 AddCSLuaFile("player_movement/shared.lua")
 AddCSLuaFile("player_movement/cl_init.lua")
+AddCSLuaFile("cl_scoreboard.lua")
 AddCSLuaFile("vgui/progressbars.lua")
 AddCSLuaFile("vgui/emotepanel.lua")
 AddCSLuaFile("vgui/damageindicator.lua")
+AddCSLuaFile("vgui/teamselect.lua")
 
 include("shared.lua")
 include("sh_globals.lua")
@@ -37,6 +39,7 @@ function GM:AddNetworkStrings()
 	util.AddNetworkString("ms_bind_other")
 	util.AddNetworkString("ms_emote") -- sv/cl
 	util.AddNetworkString("ms_damageindicator")
+	util.AddNetworkString("ms_team_update")
 end
 
 function GM:Initialize()
@@ -49,40 +52,48 @@ function GM:PlayerNoClip()
 	return true
 end
 
---player_mdl = {"e_archer","e_footman","e_knight","g_archer","g_footman","g_knight","peasant"}
---p:SetModel("models/player/aoc_"..player_mdl[math.random(#player_mdl)]..".mdl")
-
-function GM:PlayerSpawn(p)
-	local strModel = "models/player/Group01/male_07.mdl"
-	--[[
-	local strInfo = p:GetInfo("cl_playermodel")
-	for _, v in pairs(player_manager.AllValidModels()) do
-		if strInfo == valid then
-			strModel = strInfo
-		end
-	end
-	]]
-	strModel = not strModel and table.Random(player_manager.AllValidModels()) or strModel
-	p:SetModel(strModel)
-	p:SetPlayerColor(Vector(math.Rand(0, 0.5), math.Rand(0, 0.5), math.Rand(0, 0.5)))
-	
-	p:Give("weapon_ms_base")
-	p:SetCanZoom(false)
-	
-	p:SetWalkSpeed(GAME_MVSPEED)
-	p:SetRunSpeed(GAME_MVSPEED)
-	
-	p.m_flPrevStamina = 0.0
-	p.m_iStamina = 100000
-	p.m_iMaxStamina = 100000
-	
-	self:StaminaUpdate(p, 100000)
-	p.m_soundLowStamina = CreateSound(p,"player/breathe1.wav")
-
-	p:SetupHands() -- Create the hands and call GM:PlayerSetHandsModel
+function GM:PlayerShouldTaunt()
+	return false
 end
 
--- Choose the model for hands according to their player model.
+--player_mdl = {"e_archer","e_footman","e_knight","g_archer","g_footman","g_knight","peasant"}
+--p:SetModel("models/player/aoc_"..player_mdl[math.random(#player_mdl)]..".mdl")
+do
+	local cdefault = Color(255, 255, 255)
+	function GM:PlayerSpawn(p)
+		local strModel = "models/player/Group01/male_07.mdl"
+		--[[
+		local strInfo = p:GetInfo("cl_playermodel")
+		for _, v in pairs(player_manager.AllValidModels()) do
+			if strInfo == valid then
+				strModel = strInfo
+			end
+		end
+		]]
+		strModel = not strModel and table.Random(player_manager.AllValidModels()) or strModel
+		p:SetModel(strModel)
+		
+		local tovec = GAME_TEAMCTABLE[p:Team()] ~= nil and GAME_TEAMCTABLE[p:Team()] or cdefault
+		p:SetPlayerColor(Vector(tovec["r"] / 255, tovec["g"] / 255, tovec["b"] / 255))
+		
+		p:Give("weapon_ms_base")
+		p:SetCanZoom(false)
+		
+		p:SetWalkSpeed(GAME_MVSPEED)
+		p:SetRunSpeed(GAME_MVSPEED)
+		
+		p.m_flPrevStamina = 0.0
+		p.m_iStamina = 100
+		p.m_iMaxStamina = 100
+		
+		self:StaminaUpdate(p, 100)
+		p.m_soundLowStamina = CreateSound(p, "player/breathe1.wav")
+
+		-- p:SetupHands() -- Create the hands and call GM:PlayerSetHandsModel
+	end
+end
+
+--[[ Choose the model for hands according to their player model.
 function GM:PlayerSetHandsModel( ply, ent )
 	local simplemodel = player_manager.TranslateToPlayerModelName( ply:GetModel() )
 	local info = player_manager.TranslatePlayerHands( simplemodel )
@@ -91,7 +102,7 @@ function GM:PlayerSetHandsModel( ply, ent )
 		ent:SetSkin(info.skin)
 		ent:SetBodyGroups(info.body)
 	end
-end
+end]]
 
 function GM:Think()
 	for _, p in ipairs(player.GetAll()) do
@@ -116,13 +127,15 @@ function GM:Think()
 	end
 end
 
+net.Receive("ms_team_update", function(_, p)
+	p:SetTeam(net.ReadUInt(8))
+	p:Spawn()
+end)
 net.Receive("ms_anim_queue", function(_, p)
-	local a_state = net.ReadUInt(3)
-	local flip = net.ReadBool()
 	local w = p:GetActiveWeapon()
 	if IsValid(w) then
-		w.m_iQueuedAnim = a_state
-		w.m_bQueuedFlip = flip
+		w.m_iQueuedAnim = net.ReadUInt(3)
+		w.m_bQueuedFlip = net.ReadBool()
 	end
 end)
 net.Receive("ms_bind_other", function(_, p)

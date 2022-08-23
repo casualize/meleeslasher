@@ -53,39 +53,36 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 	if CLIENT then
 		local w = ply:GetActiveWeapon()
 		if IsValid(w) and w.m_flWeight then
-			local incr = FrameTime() / w.Windup
+			local incr = w.m_iState ~= STATE_ATTACK and FrameTime() / w.Windup or FrameTime() / (w.Release * w.AngleStrike)
 			local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
-			local seqid
-
-			if seq ~= nil then
-				seqid = ply:LookupSequence(seq .. (w.m_bFlip and "_flip" or ""))
-			else
-				return
-			end
-			
+			local seqid = seq and ply:LookupSequence(seq .. (w.m_bFlip and "_flip" or "")) or nil
+			--if not seqid then return end
 			if w.m_iState == STATE_WINDUP then -- Feint init
 				w.m_flWeight = math.Approach( w.m_flWeight, 1, incr)
 				ply:AddVCDSequenceToGestureSlot(0, seqid, 0, true)
 				ply:AnimSetGestureWeight(0, math.ease.InOutQuad(w.m_flWeight))
 				ply:AnimSetGestureWeight(1, 1 - math.ease.InOutQuad(w.m_flWeight))
+				w.m_flCycle = 0
 			elseif w.m_iState == STATE_ATTACK then
-				w.m_flWeight = 0
+				w.m_flWeight = 1
+				w.m_flCycle = math.Approach( w.m_flCycle, 1, incr)
 			elseif w.m_iState == STATE_IDLE then
-				if w.m_iPrevState == STATE_WINDUP and w.m_flWeight > 0 then -- Feint cancel
+				if w.m_iPrevState == STATE_WINDUP then -- Feint cancel, also recovery from flinch
 					w.m_flWeight = math.Approach( w.m_flWeight, 0, incr)
 					ply:AddVCDSequenceToGestureSlot(0, seqid, 0, true)
 					ply:AnimSetGestureWeight(0, math.ease.InOutQuint(w.m_flWeight))
 				elseif w.m_iPrevState == STATE_ATTACK then -- Recovery
 					if w.m_flPrevState + w.Recovery >= CurTime() then
-						w.m_flWeight = 0
-						w.m_flWeightRecovery = math.Approach( w.m_flWeightRecovery, 0, incr)
+						w.m_flWeight = math.Approach( w.m_flWeight, 0, incr)
 						ply:AddVCDSequenceToGestureSlot(0, seqid, w.m_flCycle, true)
-						ply:AnimSetGestureWeight(0, math.ease.InOutCubic(w.m_flWeightRecovery))
+						ply:AnimSetGestureWeight(0, math.ease.InOutCubic(w.m_flWeight))
 					end
 				end
-			else
-				ply:AnimResetGestureSlot(0) -- wip Fixes attack anim coming out of nowhere
-				ply:AnimSetGestureWeight(0, 1) -- Needed for animations like parry
+			elseif w.m_iState == STATE_PARRY then
+				w.m_flCycle = 0
+				w.m_flWeight = 0
+				ply:AnimResetGestureSlot(0)
+				ply:AnimSetGestureWeight(0, 1)
 			end
 		end 
 	end

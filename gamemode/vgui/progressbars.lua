@@ -22,7 +22,7 @@ local ctable = {
 
 function PANEL:Init()
 	self:SetSize(ScrW(), ScrH())
-	self:SetZPos(0) -- -32768
+	self:SetZPos(0)
 	
 	for _, v in ipairs(ref) do
 		v[MAIN] = vgui.Create("DProgress", self)

@@ -8,7 +8,7 @@ function PANEL:Init()
 	self:SetSize(ScrW() / 4, ScrH() / 4.5)
     x, y = self:GetSize()
     self:SetPos(ScrW() / 2 - x / 2, 13 * ScrH() / 20)
-	self:SetZPos(0) -- -32768
+	self:SetZPos(0)
 
     ref_main = vgui.Create("DFrame", self)
     ref_main:SetAlpha(128)

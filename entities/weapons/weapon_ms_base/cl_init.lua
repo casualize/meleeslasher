@@ -37,14 +37,17 @@ function SWEP:AnimInit()
 	if o == LocalPlayer() then
 		self.viewangles = LocalPlayer():EyeAngles()
 	end 
+
+	-- For some reason anything but lp doesn't get set to ANIM_NONE when STATE_PARRY? this is a hotfix.
 	if self.m_iState == STATE_PARRY then
-		self.m_iAnim = ANIM_NONE -- wip temp
+		self.m_iAnim = ANIM_NONE
 	end
+
 	if o ~= LocalPlayer() then
-		if IsValid(self) then -- ?
+		if self.m_iState and self.m_iAnim then -- ?
 			local seq = DEF_ANM_SEQUENCES[self.m_iState][self.m_iAnim]
 			if seq ~= nil then
-				if seq == "ms_parry" then
+				if seq == "ms_parry" then -- Must be seperate boolean logic (hotfix)
 					o:AddVCDSequenceToGestureSlot(1, o:LookupSequence(seq), 0, true)
 				end
 			else
@@ -55,59 +58,13 @@ function SWEP:AnimInit()
 			end
 		end
 	end
-
-	-- For UpdateAnimation
-	for k in ipairs(self.m_tCurTimeBank) do
-		if self.m_iState == k then
-			self.m_tCurTimeBank[k] = self.m_flPrevState
-			--print(DBG_STATE[k], "P", self.m_flPrevState)
-			break
-		end
-	end
-
-	if self.m_iPrevState == STATE_ATTACK then
-		if (self.m_tCurTimeBank[STATE_IDLE] - self.m_tCurTimeBank[STATE_ATTACK]) > 1 then -- Bandaid fix, if state_attack doesn't update
-			self.m_flCycle = 0
-		else
-			self.m_flCycle = (self.m_tCurTimeBank[STATE_IDLE] - self.m_tCurTimeBank[STATE_ATTACK] ) / (self.Release * self.AngleStrike)
-		end
-		self.m_flWeightRecovery = 1
-	end
-	if o ~= LocalPlayer() then
-		if self.m_iState == STATE_WINDUP or self.m_iState == STATE_IDLE or self.m_iState == STATE_PARRY then
-			--self.m_flWeight = 0
-		end
-	end
 end
 
--- Anything else below is for localplayer
--- Seperated for setting lplayer's animations without server's permission
-function SWEP:AnimInitLocalPlayer(s, a)
-	local p = LocalPlayer()
-	local w = p:GetActiveWeapon()
-	self.m_iState = s -- For UpdateAnimation
-	self.m_iAnim = a
-	self.viewangles = LocalPlayer():EyeAngles() -- For Turncap
-	local seq = DEF_ANM_SEQUENCES[s][a]
-	if seq ~= nil then
-		if seq == "ms_parry" then
-			p:AddVCDSequenceToGestureSlot(1, p:LookupSequence(seq), 0, true)
-		end
-	else
-		p:AnimResetGestureSlot(0)
-	end
-
-	if s == STATE_WINDUP or s == STATE_PARRY or s == STATE_IDLE then
-		self.m_flCycle = 0
-		self.m_flWeight = 0 -- !!! This sometimes gets skipped!
-	end
-end
+-- Anything else below is for localplayer, stuff that happens without sv permission
 
 function SWEP:Queue(a_state, flip)
 	self.m_iQueuedAnim = a_state
 	self.m_bQueuedFlip = flip
-
-	-- Updates queued anim
 	if ((self.m_iState == STATE_IDLE --[[and self.m_flPrevState + self.Recovery <= CurTime()]]) or self.m_iState == STATE_PARRY) and not self.m_bRiposting then
 		net.Start("ms_anim_queue")
 			net.WriteUInt(a_state, 3)
@@ -117,7 +74,6 @@ function SWEP:Queue(a_state, flip)
 
 	if self.m_iState == STATE_IDLE and self.m_flPrevState + self.Recovery <= CurTime() then
 		local p = LocalPlayer()
-		local iFlipFinal = flip and -1 or 1
 		self:StateUpdate(p, STATE_WINDUP, a_state, self.m_bRiposting, flip)
 		self.viewangles = p:EyeAngles()
 	end
@@ -126,10 +82,19 @@ end
 function SWEP:StateUpdate(p, s, a, r, f)
 	local w = p:GetActiveWeapon()
 	if IsValid(w) then
+		self.viewangles = LocalPlayer():EyeAngles() -- Turncap update
+		local seq = DEF_ANM_SEQUENCES[s][a]
+		if seq ~= nil then
+			if seq == "ms_parry" then
+				p:AddVCDSequenceToGestureSlot(1, p:LookupSequence(seq), 0, true)
+			end
+		else
+			p:AnimResetGestureSlot(0)
+		end
+
 		w.m_iState = s or w.m_iState
 		w.m_iAnim = a or w.m_iAnim
-
-		self:AnimInitLocalPlayer(s, a)
+		w.m_bFlip = (f) or w.m_bFlip -- Sometimes changes to nil? Mandatory fallback
 	end
 end
 
@@ -144,8 +109,10 @@ function SWEP:SecondaryAttack()
 end
 
 function SWEP:Parry()
-	if CurTime() >= self.m_flPrevParry and (self.m_iState == STATE_IDLE or self.m_iState == STATE_WINDUP) then
-		local p = LocalPlayer()
+	local p = LocalPlayer()
+	if CurTime() >= self.m_flPrevParry and (self.m_iState == STATE_IDLE or 
+	(self.m_iState == STATE_WINDUP --[[and CurTime() <= self.m_flPrevState + self.Windup ]]))
+	then
 
 		-- Reset fields
 		self.m_bRiposting = false

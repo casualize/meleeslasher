@@ -15,6 +15,7 @@ function SWEP:Initialize()
 	self.m_iAngleFinal = 0
 	self.m_iIncrMul = 0
 	self.m_iAttachID = 0
+	self.m_iSeqID = 0
 end
 
 function SWEP:Queue(ianim, bflip)
@@ -86,118 +87,125 @@ function SWEP:Attack()
 		print("ValveBiped.Anim_Attachment_RH wasn't found!")
 	end
 
-	self:StateUpdate(o, STATE_ATTACK, self.m_iAnim, self.m_bRiposting, self.m_bFlip) -- Network message will get discarded if the first iteration of trace hits world(?)
+	self:StateUpdate(o, STATE_ATTACK, self.m_iAnim, self.m_bRiposting, self.m_bFlip) -- The packets will not be sent to clients if the first iteration calls attackfinish ?
 
 	self.m_iQueuedAnim = ANIM_NONE
 	self.m_bQueuedFlip = false
 end
 
-do
-	local function CheckMulti(p, hitgroup)
-		return hitgroup == HITGROUP_HEAD and 2 or 1
-	end
-	function SWEP:Think()
-		local o = self:GetOwner()
-		if self.m_iState == STATE_IDLE then
-			--[[if self.m_flPrevState + self.Recovery >= CurTime() then
-				self.m_iQueuedAnim = ANIM_NONE
-			end]]
+function SWEP:CheckMulti(p, hitgroup)
+	local o = self:GetOwner()
+	local amount = hitgroup == HITGROUP_HEAD and 2 or 1
+	return o:Team() ~= p:Team() and amount or amount * 0.2
+end
+function SWEP:Think()
+	local o = self:GetOwner()
+	if self.m_iState == STATE_IDLE then
+		--[[if self.m_flPrevState + self.Recovery >= CurTime() then
+			self.m_iQueuedAnim = ANIM_NONE
+		end]]
+		if self.m_iQueuedAnim ~= ANIM_NONE then
+			self:Queue(self.m_iQueuedAnim, self.m_bQueuedFlip)
+		end
+	elseif self.m_iState == STATE_WINDUP and self.m_flNextAttack <= CurTime() then
+		self:Attack()
+	elseif self.m_iState == STATE_PARRY then
+		if self.m_flPrevRiposte >= CurTime() then
 			if self.m_iQueuedAnim ~= ANIM_NONE then
+				self.m_bRiposting = true
 				self:Queue(self.m_iQueuedAnim, self.m_bQueuedFlip)
 			end
-		elseif self.m_iState == STATE_WINDUP and self.m_flNextAttack <= CurTime() then
-			self:Attack()
-		elseif self.m_iState == STATE_PARRY then
-			if self.m_flPrevRiposte >= CurTime() then
-				if self.m_iQueuedAnim ~= ANIM_NONE then
-					self.m_bRiposting = true
-					self:Queue(self.m_iQueuedAnim, self.m_bQueuedFlip)
-				end
-			elseif self.m_flPrevState + (1/3) <= CurTime() then
-				if not self.m_bRiposting then
-					self.m_iQueuedAnim = ANIM_NONE
-					self:StateUpdate(o, STATE_IDLE, ANIM_NONE, self.m_bRiposting, self.m_bFlip)
-					o:EmitSound("physics/flesh/flesh_impact_hard2.wav", 75, 50, 1)
-				end
+		elseif self.m_flPrevState + (1/3) <= CurTime() then
+			if not self.m_bRiposting then
+				self.m_iQueuedAnim = ANIM_NONE
+				self:StateUpdate(o, STATE_IDLE, ANIM_NONE, self.m_bRiposting, self.m_bFlip)
+				o:EmitSound("physics/flesh/flesh_impact_hard2.wav", 75, 50, 1)
 			end
-		elseif self.m_iState == STATE_ATTACK then
-			for iAng = 1, self.m_iIncrMul do
-				o:LagCompensation(true)
-				local bm = o:GetBoneMatrix(self.m_iAttachID)
-				local v = bm:GetTranslation()
-				local a = bm:GetAngles()
-				local st = v + a:Up() * iAng -- Perhaps could use some sort of get for next cycle's position?
-				local en = st + a:Right() * -self.Range
-				local tr = util.TraceLine({
-					start = st,
-					endpos = en,
-					filter = self.m_tFilter
-				})
-				o:LagCompensation(false)
-				if tr.HitWorld then
-					self:AttackFinish(st, en, self.slashtag)
-					GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
-					o:EmitSound("physics/concrete/concrete_impact_bullet"..math.random(4)..".wav",75,100,1)
-					break
-				end
-				if tr.Entity ~= NULL and tr.Entity ~= o then
-					if type(tr.Entity) == "Player" and tr.Entity:GetActiveWeapon() then
-						if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY then -- PARRY
+		end
+	elseif self.m_iState == STATE_ATTACK then
+		for iAng = 1, self.m_iIncrMul do
+			if self.m_iSeqID ~= nil  then
+				o:AddVCDSequenceToGestureSlot(0, self.m_iSeqID, (self.m_nThink + iAng) / self.m_iAngleFinal, true) -- Setting gesture here allows manipulating the "playback rate"
+			end
+			o:LagCompensation(true)
+			local bm = o:GetBoneMatrix(self.m_iAttachID) -- The returns are fixed on tick...
+			local v = bm:GetTranslation()
+			local a = bm:GetAngles()
+			local st = v + a:Up() * iAng + a:Right() * -8
+			local en = st + a:Right() * -self.Range
+			local tr = util.TraceLine({
+				start = st,
+				endpos = en,
+				filter = self.m_tFilter
+			})
+			o:LagCompensation(false)
+			if tr.HitWorld then
+				self:AttackFinish(st, en, self.slashtag)
+				GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
+				o:EmitSound("physics/concrete/concrete_impact_bullet"..math.random(4)..".wav",75,100,1)
+				break
+			end
+			if tr.Entity ~= NULL and tr.Entity ~= o then
+				if type(tr.Entity) == "Player" and tr.Entity:GetActiveWeapon() then
+					if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY or o:Team() == tr.Entity:Team() then -- PARRY
+						if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY then
 							self:Riposte(tr.Entity) -- RIPOSTE and PARRY
-							self:AttackFinish(st, en, self.slashtag)
-							GAMEMODE:StaminaUpdate(o, nil, true)
-							break
 						else
-							if self.Cleave then
-								local bFilter = false
-								for _, f in pairs(self.m_tFilter) do
-									if tr.Entity == f then
-										bFilter = true
-										break
-									end
+							self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity,tr.HitGroup))
+						end
+						GAMEMODE:StaminaUpdate(o, nil, true)
+						self:AttackFinish(st, en, self.slashtag)
+						break
+					else
+						if self.Cleave then
+							local bFilter = false
+							for _, f in pairs(self.m_tFilter) do
+								if tr.Entity == f then
+									bFilter = true
+									break
 								end
-								if bFilter == false then
-									self:Flinch(tr.Entity)
-									GAMEMODE:StaminaUpdate(o, o.m_iStamina + 40, true)
-									self:DamageSimple(iAng, tr.Entity, CheckMulti(tr.Entity,tr.HitGroup))
-									
-									self.m_tFilter[#self.m_tFilter + 1] = tr.Entity
-								end
-							else
+							end
+							if bFilter == false then
 								self:Flinch(tr.Entity)
 								GAMEMODE:StaminaUpdate(o, o.m_iStamina + 40, true)
-								self:DamageSimple(iAng, tr.Entity, CheckMulti(tr.Entity,tr.HitGroup))
-								self:AttackFinish(st, en, self.slashtag)
-								break
+								self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity,tr.HitGroup))
+								
+								self.m_tFilter[#self.m_tFilter + 1] = tr.Entity
 							end
+						else
+							self:Flinch(tr.Entity)
+							GAMEMODE:StaminaUpdate(o, o.m_iStamina + 40, true)
+							self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity,tr.HitGroup))
+							self:AttackFinish(st, en, self.slashtag)
+							break
 						end
-							
-					elseif tr.Entity:GetClass() == ("prop_physics" or "prop_physics_multiplayer" or "func_physbox") and tr.Entity:GetPhysicsObject() then
-						tr.Entity:GetPhysicsObject():SetVelocity(tr.Entity:GetVelocity() + (tr.Entity:GetPos()-tr.HitPos)*1000)
-						tr.Entity:EmitSound("physics/metal/metal_barrel_impact_hard"..math.random(3)..".wav", 75, 120, 1)
-						self:DamageSimple(iAng, tr.Entity, 1)
-						self:AttackFinish(st, en, self.slashtag)
-						GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.StaminaDrain, true)
-						break
 					end
-				end
-				
-				-- Draw DBG Tracers, affiliate it with glance angles
-				if DRAW_SV_TRACERS:GetBool() and tr.Entity == NULL then
-					local idx = 1
-					if self.m_iAnim ~= ANIM_THRUST then
-						idx = iAng > self.GlanceAngles and 1 or 2
-					end
-					SV_TRACER_DRAW(st, en, idx, self.slashtag)
-				end
-				if self.m_nThink + iAng > self.m_iAngleFinal then
-					self:AttackFinish()
-					GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
+						
+				elseif tr.Entity:GetClass() == ("prop_physics" or "prop_physics_multiplayer" or "func_physbox") and tr.Entity:GetPhysicsObject() then
+					tr.Entity:GetPhysicsObject():SetVelocity(tr.Entity:GetVelocity() + (tr.Entity:GetPos()-tr.HitPos)*1000)
+					tr.Entity:EmitSound("physics/metal/metal_barrel_impact_hard"..math.random(3)..".wav", 75, 120, 1)
+					self:DamageSimple(iAng, tr.Entity, 1)
+					self:AttackFinish(st, en, self.slashtag)
+					GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.StaminaDrain, true)
 					break
 				end
 			end
-			self.m_nThink = self.m_nThink + self.m_iIncrMul
+			
+			-- Draw DBG Tracers, affiliate it with glance angles
+			if DRAW_SV_TRACERS:GetBool() and tr.Entity == NULL then
+				local idx = 1
+				if self.m_iAnim ~= ANIM_THRUST then
+					idx = iAng > self.GlanceAngles and 1 or 2
+				end
+				SV_TRACER_DRAW(st, en, idx, self.slashtag)
+			end
+			if self.m_nThink + iAng > self.m_iAngleFinal then
+				self:AttackFinish()
+				GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
+				break
+			end
 		end
+		self.m_nThink = self.m_nThink + self.m_iIncrMul
 	end
 end
 
@@ -242,11 +250,8 @@ do
 				print(DBG_NCALLS, p, DBG_STATE[w.m_iState], DBG_ANIM[w.m_iAnim], r and "riposte" or "")
 			end
 
-			-- Synchronize pmodel animations for server
 			local seq = DEF_ANM_SEQUENCES[w.m_iState][w.m_iAnim]
-			if seq ~= nil  then
-				p:AddVCDSequenceToGestureSlot(0, p:LookupSequence(seq .. (f and "_flip" or "")), 0, true)
-			end
+			self.m_iSeqID = seq ~= nil and p:LookupSequence(seq .. (f and "_flip" or "")) or nil
 
 			-- Viewmodel stuff, unused
 			--[[
@@ -272,7 +277,7 @@ function SWEP:AttackFinish(tracerst, traceren, tracertag)
 	self.m_bRiposting = false
 	if tracerst then
 		local effectdata = EffectData()
-		effectdata:SetOrigin(tracerst)
+		effectdata:SetOrigin(traceren)
 		util.Effect("MetalSpark", effectdata, true, false)
 
 		if DRAW_SV_TRACERS:GetBool() then
@@ -297,7 +302,7 @@ function SWEP:Flinch(p)
 		net.WriteFloat(CurTime())
 	net.Broadcast()
 
-	self:StateUpdate(p, STATE_IDLE, ANIM_NONE, false, w.m_bFlip)
+	self:StateUpdate(p, STATE_IDLE, w.m_iAnim, false, w.m_bFlip)
 end
 
 function SWEP:Riposte(p)

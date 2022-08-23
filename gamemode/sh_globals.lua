@@ -1,7 +1,3 @@
--- DT keys (unused)
-WEP_STATE = 0
-WEP_ANIM = 1
-
 -- Weapon states
 STATE_IDLE = 1
 STATE_PARRY = 2
@@ -59,10 +55,10 @@ DEF_ANM_SEQUENCES = {
 	[STATE_PARRY] = {"ms_parry"},
 	[STATE_WINDUP] = {
 		[ANIM_NONE] = nil,
-		[ANIM_STRIKE] = nil,
-		[ANIM_UPPERCUT] = nil,
-		[ANIM_UNDERCUT] = nil,
-		[ANIM_THRUST] = nil
+		[ANIM_STRIKE] = "ms_strike",
+		[ANIM_UPPERCUT] = "ms_uppercut",
+		[ANIM_UNDERCUT] = "ms_undercut",
+		[ANIM_THRUST] = "ms_thrust"
 	},
 	[STATE_ATTACK] = {
 		[ANIM_NONE] = nil,
@@ -75,3 +71,10 @@ DEF_ANM_SEQUENCES = {
 
 -- Other globals
 GAME_MVSPEED = 100
+GAME_NTEAMS = 4
+GAME_TEAMCTABLE = {
+	[1] = Color(150, 0, 0),
+	[2] = Color(0, 11, 170),
+	[3] = Color(0, 201, 50),
+	[4] = Color(207, 187, 0)
+}

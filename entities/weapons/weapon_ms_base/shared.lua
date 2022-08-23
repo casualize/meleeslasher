@@ -47,19 +47,9 @@ SWEP.m_flPrevFeint = 0.0
 
 SWEP.m_flCycle = 0.0
 SWEP.m_flWeight = 0.0
-SWEP.m_flWeightRecovery = 0.0
 
 SWEP.slashtag = 0 -- might get deprecated
 SWEP.m_soundRelease = {"vo/npc/male01/pain04", "vo/npc/male01/pain03"} -- might get deprecated
-
-if CLIENT then
-	SWEP.m_tCurTimeBank = {
-		[STATE_IDLE] = 0.0,
-		[STATE_PARRY] = 0.0,
-		[STATE_WINDUP] = 0.0,
-		[STATE_ATTACK] = 0.0,
-	}
-end
 
 --TODO/BUG--------------------------
 --[[

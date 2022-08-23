@@ -252,7 +252,7 @@ function ZSBOTS.Think()
 		bot.PathableTargets = {}
 
 		for __, pl in ipairs(player.GetAll()) do
-			if pl ~= bot and --[[not pl:IsBot() and]] pl:Alive() and pl:GetObserverMode() == OBS_MODE_NONE then
+			if pl:Team() ~= bot:Team() and  pl:Alive() and pl:GetObserverMode() == OBS_MODE_NONE then
 				table.insert(bot.PathableTargets, pl)
 			elseif pl:IsBot() and not pl:Alive() then
 				gamemode.Call("PlayerDeathThink", pl)
@@ -312,7 +312,7 @@ function ZSBOTS:CreateBot(teamid, name)
 	if pl:IsValid() then
 		pl.m_bZSBot = true
 
-		--pl:ChangeTeam(teamid)
+		pl:SetTeam(teamid)
 		pl:Spawn()
 
 		local nb = ents.Create("zsbotnb")
