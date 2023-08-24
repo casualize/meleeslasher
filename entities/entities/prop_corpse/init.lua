@@ -14,6 +14,19 @@ function ENT:Initialize()
     self:SetSequence(lseq)
     self:SetPlaybackRate(1)
     self.AutomaticFrameAdvance = true
+
+    --[[
+    local bid
+    for i = 0, o:GetBoneCount() - 1 do
+        bid = o:GetBoneName(i) -- Temporarily set it to a string
+        if bid == "ValveBiped.Bip01_Head1" then
+            bid = i
+            break
+        end
+    end
+    self:ManipulateBoneScale(bid, Vector())
+    ]]
+
     timer.Simple(ldur, function()
         self:SetNoDraw(true)
         timer.Simple(1, function()
