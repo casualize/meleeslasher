@@ -30,7 +30,7 @@ function PANEL:Paint()
 
     local p = LocalPlayer()
 
-    if p then
+    if p and CL_SHOW_DAMAGEINDICATOR:GetBool() then
         if #DMG_DATA ~= 0 then
             local dmgtotal = 0
             ref_main:Show()

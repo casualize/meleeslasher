@@ -126,3 +126,100 @@ function SWEP:Parry()
 		end
 	end
 end
+
+do
+	local function add_quad(start_pos, stop_pos, start_ang, stop_ang, start_width, stop_width, r,g,b,a)
+		local lower_right = Vector(0,-start_width*0.5,0)
+		local lower_left = Vector(0,start_width*0.5,0)
+
+		local upper_right = Vector(0,-stop_width*0.5,0)
+		local upper_left = Vector(0,stop_width*0.5,0)
+
+		lower_right:Rotate(start_ang)
+		upper_right:Rotate(stop_ang)
+
+		lower_left:Rotate(start_ang)
+		upper_left:Rotate(stop_ang)
+
+		mesh.TexCoord(0, 0, 1)
+		mesh.Color(r,g,b,a)
+		mesh.Position(stop_pos + upper_left)
+		mesh.AdvanceVertex()
+
+		mesh.TexCoord(0, 0, 0)
+		mesh.Color(r,g,b,a)
+		mesh.Position(start_pos + lower_left)
+		mesh.AdvanceVertex()
+
+		mesh.TexCoord(0, 1, 0)
+		mesh.Color(r,g,b,a)
+		mesh.Position(start_pos + lower_right)
+		mesh.AdvanceVertex()
+
+		mesh.TexCoord(0, 1, 1)
+		mesh.Color(r,g,b,a)
+		mesh.Position(stop_pos + upper_right)
+		mesh.AdvanceVertex()
+
+		mesh.TexCoord(0, 0, 1)
+		mesh.Color(r,g,b,a)
+		mesh.Position(stop_pos + upper_left)
+		mesh.AdvanceVertex()
+
+		mesh.TexCoord(0, 1, 0)
+		mesh.Color(r,g,b,a)
+		mesh.Position(start_pos + lower_right)
+		mesh.AdvanceVertex()
+	end
+	local mat = CreateMaterial( "ms_trail", "UnlitGeneric", {
+		["$basetexture"] = "trail/gradient",
+		["$nocull"] = 1,
+		["$additive"] = 1,
+		["$vertexcolor"] = 1,
+		["$vertexalpha"] = 1
+	  } )
+	function SWEP:DrawWorldModel()
+		local o = self:GetOwner()
+		self:DrawModel(1)
+		for i = 0, o:GetBoneCount() - 1 do
+			self.m_iAttachID = o:GetBoneName(i) -- Temporarily set it to a string
+			if self.m_iAttachID == "ValveBiped.Anim_Attachment_RH" then
+				self.m_iAttachID = i
+				break
+			end
+		end
+
+		if type(self.m_iAttachID) == "string" then return end -- Bandaid fix for error spam 
+
+		local bm = o:GetBoneMatrix(self.m_iAttachID) -- The returns are fixed on tick...
+		local v = bm:GetTranslation()
+		local a = bm:GetAngles()
+
+
+		--a:RotateAroundAxis(a:Right(), 0)
+		if not self.m_tPos[1] or self.m_tPos[1].v:Distance(v) > 1 and self.m_iState == STATE_ATTACK then
+			table.insert(self.m_tPos, {v = v + a:Right() * -self.Range*(3/4), a = a})
+		end
+
+		if #self.m_tPos > 64 or self.m_iState ~= STATE_ATTACK then
+			table.remove(self.m_tPos, 1)
+		end
+
+		render.SetMaterial(mat)
+
+		local quads = #self.m_tPos
+		render.SuppressEngineLighting(true)
+		mesh.Begin(MATERIAL_TRIANGLES, 2*quads)
+			local ok, err = pcall(function()
+			for i = 0, quads - 1 do
+				local a = self.m_tPos[i+1]
+				local b = self.m_tPos[i]
+				if a and b then
+					add_quad(b.v, a.v, b.a, a.a, self.Range, self.Range, 192, 192, 192, 55*(i/quads)^1)
+				end
+			end
+			end) if not ok then ErrorNoHalt(err) end
+		mesh.End()
+		render.SuppressEngineLighting(false)
+	end
+end

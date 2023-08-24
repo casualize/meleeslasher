@@ -8,8 +8,9 @@ SWEP.Secondary.ClipSize = -1
 SWEP.Secondary.DefaultClip = -1
 SWEP.Secondary.Ammo = "none"
 SWEP.Secondary.Automatic = false
-
-SWEP.ViewModel = Model( "models/weapons/c_greatsword.mdl" )
+-- "models/aoc_weapon/w_flamberge.mdl"
+-- "models/aoc_weapon/w_mace2.mdl"
+SWEP.ViewModel = Model( "models/weapons/c_greatsword.mdl" ) -- Unused
 SWEP.WorldModel = Model( "models/aoc_weapon/w_flamberge.mdl" )
 SWEP.ViewModelFOV = 100
 -- SWEP.ShowWorldModel = false
@@ -19,13 +20,14 @@ SWEP.UseHands = true
 SWEP.Name = "base"
 SWEP.ThrustDamage = 10
 SWEP.SwingDamage = 25 -- 35
-SWEP.Range = 48 -- 36
+SWEP.Range = 44 -- 36
+SWEP.HandleRange = 8
 SWEP.Lunge = 40 -- (u/s)
 SWEP.Release = 0.002 -- how fast angle degree ticks, swep.release*swep.angle for time taken swinging 
 SWEP.Windup = (2/3)
 SWEP.Recovery = (2/3)
 SWEP.TurnCap = 200 -- 150
-SWEP.AngleStrike = 230 -- 235 -- Should deprecate this into sequence duration multiplier or something, this field is temporary
+SWEP.AngleStrike = 200 -- 235 -- Should deprecate this into sequence duration multiplier or something, this field is temporary
 SWEP.Cleave = true
 SWEP.GlanceAngles = -1 --8 -- Temporary anti-backswing
 SWEP.StaminaDrain = 9
@@ -38,6 +40,7 @@ SWEP.m_iQueuedAnim = ANIM_NONE -- sv
 SWEP.m_bRiposting = false -- sv/cl
 SWEP.m_bFlip = false -- sv/cl
 SWEP.m_tFilter = {} -- sv
+SWEP.m_tPos = {} -- cl
 
 SWEP.m_flPrevState = 0.0
 SWEP.m_flPrevParry = 0.0
@@ -67,6 +70,5 @@ SWEP.m_soundRelease = {"vo/npc/male01/pain04", "vo/npc/male01/pain03"} -- might 
 --]]
 ------------------------------------
 
--- Here so it disables the annoying clicking sound
-function SWEP:PrimaryAttack()
-end
+-- Emptying this function disables the annoying clicking sound
+function SWEP:PrimaryAttack() end

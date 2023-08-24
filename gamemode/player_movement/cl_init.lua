@@ -1,4 +1,4 @@
---CACHED GLOBALS (TODO)
+--CACHED GLOBALS
 local math = math
 local bit = bit
 local IN_JUMP = IN_JUMP

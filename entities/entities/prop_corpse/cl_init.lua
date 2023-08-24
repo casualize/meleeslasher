@@ -31,6 +31,18 @@ function ENT:Initialize()
         TransferBones(self, ref)
         ref:SetNoDraw(false)
 
+        --[[
+        local bid
+        for i = 0, o:GetBoneCount() - 1 do
+            bid = o:GetBoneName(i) -- Temporarily set it to a string
+            if bid == "ValveBiped.Bip01_Head1" then
+                bid = i
+                break
+            end
+        end
+        ref:ManipulateBoneScale(bid, Vector())
+        ]]
+
         timer.Simple(8, function()
             if IsValid(ref) then
                 ref:Remove()

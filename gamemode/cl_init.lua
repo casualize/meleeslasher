@@ -24,6 +24,7 @@ CLIENT_BIND = {
 
 CL_FOV = CreateConVar("ms_cl_fov", "120", true, false)
 CL_DRAW_TRACERS = CreateConVar("ms_cl_draw_tracers", "0", true, false)
+CL_SHOW_DAMAGEINDICATOR = CreateConVar("ms_cl_show_damageindicator", "1", true, false)
 CL_TRACER_LIFETIME = CreateConVar("ms_cl_cl_tracers_lifetime", "1", true, false)
 SV_TRACER_LIFETIME = CreateConVar("ms_cl_sv_tracers_lifetime", "1", true, false)
 
@@ -185,22 +186,27 @@ do
 		fov = CL_FOV:GetInt(),
 		drawviewer = true
 	}
+	-- Constants
 	local attachment = {
 		[1] = "ValveBiped.Bip01_Head1",
 		[2] = "ValveBiped.Bip01_Neck1",
 		[3] = "ValveBiped.Bip01_Spine4",
-		[4] = "ValveBiped.Bip01_Spine2"
+		[4] = "ValveBiped.Bip01_Spine2",
+		[5] = "ValveBiped.forward"
 	}
+	-- Current playermodel's BoneIDs
 	local attachid = {
 		[1] = -1,
 		[2] = -1,
 		[3] = -1,
-		[4] = -1
+		[4] = -1,
+		[5] = -1
 	}
 	hook.Add("CalcView", "SwitchPerspective", function(_p, _v, _a)
 		-- Put this on model change call
 		for k, v in ipairs(attachment) do
 			for i = 0, _p:GetBoneCount() - 1 do
+				--print(v)
 				if v == _p:GetBoneName(i) then
 					attachid[k] = i
 					break
@@ -208,6 +214,7 @@ do
 			end
 			v = -1
 		end
+		
 		camt.fov = CL_FOV:GetInt()
 		if _p.m_bPerspectiveToggle then
 			for _, v in ipairs(attachid) do
@@ -246,7 +253,7 @@ concommand.Add("ms_help", function()
 	attack right afterwards, this makes you unflinchable.   		   
 
 	A feint is performed when you input during your weapon's windup    
-	state, this may trick your opponent to input parry, making it      
+	state, this may trick your opponent to input parry, making them    
 	vulnerable to coming attacks.                                      
 
 	It's important to understand the concept of swing manipulation, we 
@@ -288,7 +295,7 @@ concommand.Add("ms_help", function()
 end)
 
 function GM:PlayerTick(p, mv) -- Provides CMoveData context, works only on maxplayers > 1
-p:GetActiveWeapon().m_bMVDATA = mv:KeyDown(IN_RELOAD)
+	p:GetActiveWeapon().m_bMVDATA = mv:KeyDown(IN_RELOAD)
 end
 
 function CL_TRACER_DRAW(...) -- Gets called multiple times if maxplayers > 1, bug
@@ -304,7 +311,7 @@ function CL_TRACER_DRAW(...) -- Gets called multiple times if maxplayers > 1, bu
 end
 
 -- Sets target for progressbars vgui
-hook.Add("CalcViewModelView","ms_SetTarget", function() 
+hook.Add("CalcViewModelView", "ms_SetTarget", function() 
 	local p = LocalPlayer()
 	p.m_eTarget = (IsValid(p:GetEyeTrace().Entity) and type(p:GetEyeTrace().Entity) == "Player") and p:GetEyeTrace().Entity or nil
 end)

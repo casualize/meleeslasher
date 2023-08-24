@@ -61,8 +61,12 @@ end
 do
 	local cdefault = Color(255, 255, 255)
 	function GM:PlayerSpawn(p)
-		local strModel = "models/player/Group01/male_07.mdl"
+		local strModel = "models/player/Group02/male_0" .. math.random(4)*2 .. ".mdl"
+		--p:SetBodygroup(0, 1)
+		--p:SetBodygroup(1, 12)
+		
 		--[[
+		-- This includes female models... (they have different anim)
 		local strInfo = p:GetInfo("cl_playermodel")
 		for _, v in pairs(player_manager.AllValidModels()) do
 			if strInfo == valid then

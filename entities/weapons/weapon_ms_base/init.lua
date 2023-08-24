@@ -10,7 +10,9 @@ function SWEP:SetupDataTables()
 end
 
 function SWEP:Initialize()
-	-- These are the fields that really should be not accessed externally
+	local o = self:GetOwner()
+
+	-- Internal fields
 	self.m_nThink = 0
 	self.m_iAngleFinal = 0
 	self.m_iIncrMul = 0
@@ -42,7 +44,7 @@ function SWEP:Queue(ianim, bflip)
 	end
 end
 
-local function SV_TRACER_DRAW(tracerst,traceren,bit,tracertag)
+local function SV_TRACER_DRAW(tracerst, traceren, bit, tracertag)
 	net.Start("ms_tracer_server")
 		net.WriteVector(tracerst)
 		net.WriteVector(traceren)
@@ -123,7 +125,7 @@ function SWEP:Think()
 			end
 		end
 	elseif self.m_iState == STATE_ATTACK then
-		for iAng = 1, self.m_iIncrMul do
+		for iAng = 1, (self.Range - self.HandleRange)/4 do -- self.m_iIncrMul
 			if self.m_iSeqID ~= nil  then
 				o:AddVCDSequenceToGestureSlot(0, self.m_iSeqID, (self.m_nThink + iAng) / self.m_iAngleFinal, true) -- Setting gesture here allows manipulating the "playback rate"
 			end
@@ -131,8 +133,10 @@ function SWEP:Think()
 			local bm = o:GetBoneMatrix(self.m_iAttachID) -- The returns are fixed on tick...
 			local v = bm:GetTranslation()
 			local a = bm:GetAngles()
-			local st = v + a:Up() * iAng + a:Right() * -8
-			local en = st + a:Right() * -self.Range
+			local back = self.m_iAnim ~= ANIM_THRUST and -(self.Range - self.HandleRange)/2 or 1
+			local back2 = self.m_nThink > 32 and back or 1
+			local st = v + a:Right() * -8 + a:Right() * -iAng * 4 -- Chiv1 way of doing it, need to make it dynamic based on tickrate etc
+			local en = st + a:Up() * back2
 			local tr = util.TraceLine({
 				start = st,
 				endpos = en,
@@ -165,7 +169,7 @@ function SWEP:Think()
 									break
 								end
 							end
-							if bFilter == false then
+							if not bFilter then
 								self:Flinch(tr.Entity)
 								GAMEMODE:StaminaUpdate(o, o.m_iStamina + 40, true)
 								self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity,tr.HitGroup))
@@ -181,7 +185,7 @@ function SWEP:Think()
 						end
 					end
 						
-				elseif tr.Entity:GetClass() == ("prop_physics" or "prop_physics_multiplayer" or "func_physbox") and tr.Entity:GetPhysicsObject() then
+				elseif tr.Entity:GetClass() == ("prop_physics_multiplayer" or "prop_physics" or "func_physbox") and tr.Entity:GetPhysicsObject() then -- the "or"s seem not to work
 					tr.Entity:GetPhysicsObject():SetVelocity(tr.Entity:GetVelocity() + (tr.Entity:GetPos()-tr.HitPos)*1000)
 					tr.Entity:EmitSound("physics/metal/metal_barrel_impact_hard"..math.random(3)..".wav", 75, 120, 1)
 					self:DamageSimple(iAng, tr.Entity, 1)
@@ -229,7 +233,7 @@ do
 			[ANIM_THRUST] = "attack_thrust"
 		}
 	}
-	-- Reminder, this will update the specific player's wep, not self!
+	-- This will update the specific player's wep, not self!
 	function SWEP:StateUpdate(p, s, a, r, f)
 		local w = p:GetActiveWeapon()
 		if IsValid(w) then
@@ -278,7 +282,7 @@ function SWEP:AttackFinish(tracerst, traceren, tracertag)
 	if tracerst then
 		local effectdata = EffectData()
 		effectdata:SetOrigin(traceren)
-		util.Effect("MetalSpark", effectdata, true, false)
+		util.Effect("MetalSpark", effectdata, true, true)
 
 		if DRAW_SV_TRACERS:GetBool() then
 			SV_TRACER_DRAW(tracerst, traceren, 3, tracertag)
