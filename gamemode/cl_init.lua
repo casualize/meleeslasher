@@ -8,6 +8,7 @@ include("vgui/progressbars.lua")
 include("vgui/emotepanel.lua")
 include("vgui/damageindicator.lua")
 include("vgui/teamselect.lua")
+include("zsbots/shared.lua")
 
 ATTACK_BIND = {
 	-- [ANIM_STRIKE]= "+attack",
@@ -22,11 +23,9 @@ CLIENT_BIND = {
 	[1] = "gmod_undo"
 }
 
-CL_FOV = CreateConVar("ms_cl_fov", "120", true, false)
-CL_DRAW_TRACERS = CreateConVar("ms_cl_draw_tracers", "0", true, false)
-CL_SHOW_DAMAGEINDICATOR = CreateConVar("ms_cl_show_damageindicator", "1", true, false)
-CL_TRACER_LIFETIME = CreateConVar("ms_cl_cl_tracers_lifetime", "1", true, false)
-SV_TRACER_LIFETIME = CreateConVar("ms_cl_sv_tracers_lifetime", "1", true, false)
+CL_FOV = CreateConVar("ms_cl_fov", "120")
+CL_SHOW_DAMAGEINDICATOR = CreateConVar("ms_cl_show_damageindicator", "1")
+SV_TRACER_LIFETIME = CreateConVar("ms_cl_sv_tracers_lifetime", "1")
 
 local CL_LINE_DATA = {}
 local SV_LINE_DATA = {}
@@ -78,7 +77,7 @@ net.Receive("ms_damageindicator", function()
 		[2] = net.ReadUInt(16), -- Damage
 		[3] = CurTime() + 6 -- Fade time
 	}
-	-- This still plays the hit sound on very low pings
+	-- This still plays the hit sound on very low pings?
 	surface.PlaySound("meleeslasher/" .. ((Player(dmgtable[1]):Health() --[[- dmgtable[2]]) > 1 and "hitsound.wav" or "killsound.ogg"))
 	-- Fetch old damage amount, increment
 	for k, v in ipairs(DMG_DATA) do
@@ -105,7 +104,7 @@ function GM:InitPostEntity()
 	self:BuildUserInterface()
 
 	-- Hooks that get called before LocalPlayer()
-	hook.Add("CreateMove", "DuckJumpAlter", DuckJumpAlter)
+	hook.Add("CreateMove", "ms_Movement", Movement)
 end
 
 do
@@ -128,11 +127,11 @@ do
 	-- This hook triggers anytime a bind is pressed (no hold), just FYI
 	function GM:PlayerBindPress(p, bind)
 
-		-- Reset the fields, apparently doesn't set them in time :( Should put this into different hook maybe
+		-- Reset the fields, apparently doesn't set them in time :( Should put this into a more suitable hook maybe
 		tglfieldt[2][1] = LocalPlayer()
 		tglfieldt[2][2] = LocalPlayer() -- camt
 
-		-- Binds that get sent to server
+		-- Binds that get sent to the server
 		for k, v in pairs(ATTACK_BIND) do -- Not sequential
 			if bind == v then
 				local w = LocalPlayer():GetActiveWeapon()
@@ -206,7 +205,6 @@ do
 		-- Put this on model change call
 		for k, v in ipairs(attachment) do
 			for i = 0, _p:GetBoneCount() - 1 do
-				--print(v)
 				if v == _p:GetBoneName(i) then
 					attachid[k] = i
 					break
@@ -243,7 +241,8 @@ concommand.Add("ms_help", function()
 	print
 	[[
 	Welcome to Melee Slasher.
-	If you've played Chivalry or MORDHAU before you should feel at home,  
+
+	If you've played Chivalry or MORDHAU before you then should feel at home,  
 	as the gamemode mechanics makes akin to it: riposting, feinting and 
 	swing manipulation.                                                 
 	If you are new to this game genre then proceed to read below.      
@@ -273,7 +272,7 @@ concommand.Add("ms_help", function()
 	
 	OVERHEAD STRIKE  = invnext  (default: mousescroll down)
 	
-	UNDERHAND STRIKE = +zoom    (default: ?, i recommend binding it to    
+	UNDERHAND STRIKE = +zoom    (default: Z, i recommend binding it to    
 	your extra mouse buttons, for example, bind "mouse4" "alias +zoom")
 	
 	THRUST/STAB      = invprev  (default: mousescroll up)
@@ -287,27 +286,11 @@ concommand.Add("ms_help", function()
 	it to work.
 	
 	THIRDPERSON/FIRSTPERSON: +menu_context (default: C)
-	
-	OTHER INFO:
-	A parry lasts 1/3 of a second.
-	A swing lasts 0.54 of a second.
 	]]
 end)
 
 function GM:PlayerTick(p, mv) -- Provides CMoveData context, works only on maxplayers > 1
 	p:GetActiveWeapon().m_bMVDATA = mv:KeyDown(IN_RELOAD)
-end
-
-function CL_TRACER_DRAW(...) -- Gets called multiple times if maxplayers > 1, bug
-	local vargt = {...}
-	for _, v in ipairs(vargt) do
-		table.insert(CL_LINE_DATA, v)
-	end
-	timer.Simple(CL_TRACER_LIFETIME:GetFloat(), function()
-		for i = 1, #vargt do
-			table.remove(CL_LINE_DATA, 1)
-		end
-	end)
 end
 
 -- Sets target for progressbars vgui
@@ -371,7 +354,7 @@ do
 end
 
 do
-	local forbidden_huds = {
+	local forbiddenhuds = {
 		["CHudHealth"] = true,
 		["CHudBattery"] = true,
 		["CHudAmmo"] = true,
@@ -381,7 +364,7 @@ do
 		["CHudDamageIndicator"] = true
 	}
 	hook.Add("HUDShouldDraw", "ms_HideHUD", function(name)
-		return forbidden_huds[name] and false
+		return forbiddenhuds[name] and false
 	end)
 end
 

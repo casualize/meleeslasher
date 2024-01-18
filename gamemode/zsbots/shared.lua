@@ -136,6 +136,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 		if targetdist then
 			if targetdist <= meleerange then
 				if (targetstate == STATE_IDLE or targetstate == STATE_WINDUP)  then
+					-- Feel free to replace the Angle functions for spastic bot behaviour
 					if wep.m_iState == STATE_IDLE then
 						pl.m_aAttack = Angle() -- Angle(math.random(-30,30),math.random(-30,30),0)
 						wep.m_iQueuedAnim = math.random(2, 5)
@@ -190,7 +191,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 		end
 	end
 
-	if viewang then --viewang = viewang or angle_zero
+	if viewang then
 		cmd:SetViewAngles(viewang)
 		pl:SetEyeAngles(viewang)
 	end
@@ -294,12 +295,11 @@ function ZSBOTS.Think()
 	end
 end
 
-local autonameindex = 0
 function ZSBOTS:CreateBot(teamid, name)
 	if game.SinglePlayer() then return end
 
 	if not navmesh.IsLoaded() then
-		print("No navmesh - can't create bot")
+		print("No navmesh - can't create bot. Try ms_createnavmesh")
 		return
 	end
 
@@ -317,6 +317,7 @@ function ZSBOTS:CreateBot(teamid, name)
 
 		local nb = ents.Create("zsbotnb")
 		nb:SetPos(pl:GetPos())
+		nb:SetNoDraw(true)
 		nb:Spawn()
 		nb:SetOwner(pl)
 		pl:DeleteOnRemove(nb)
@@ -352,7 +353,7 @@ do
 	}
 	function ZSBOTS.DoPlayerDeath(p, att, info)
 		if att.m_bZSBot and not p:IsBot() then
-			att:Say(table.Random(randomtaunts))
+			-- att:Say(table.Random(randomtaunts))
 		end
 	end
 end
@@ -513,9 +514,9 @@ function meta:EnemyChanged(old_enemy)
 	end
 end
 
-concommand.Add("createnavmesh", function(sender)
-	if sender:IsSuperAdmin() and not game.IsDedicated() then
-		if sender:GetObserverMode() == OBS_MODE_NONE and sender:IsOnGround() and sender:OnGround() then
+concommand.Add("ms_createnavmesh", function(p)
+	if p:IsSuperAdmin() and not game.IsDedicated() then
+		if p:GetObserverMode() == OBS_MODE_NONE and p:IsOnGround() and p:OnGround() then
 			for _, class in ipairs({"func_door*", "prop_door*"}) do
 				for _, ent in pairs(ents.FindByClass(class)) do
 					ent:Fire("open", "", 0)
@@ -529,13 +530,22 @@ concommand.Add("createnavmesh", function(sender)
 			end
 			local ent = ents.Create("info_player_start")
 			if ent:IsValid() then
-				ent:SetPos(sender:GetPos())
+				ent:SetPos(p:GetPos())
 				ent:Spawn()
 				timer.Simple(2, function() navmesh.BeginGeneration() end)
 			end
 		else
 			print("You must be firmly planted on the ground.")
 		end
+	end
+end)
+
+concommand.Add("ms_createbot", function(p)
+	if p:IsSuperAdmin() then
+		if GAME_NTEAMS <= 1 then print("Not enough teams!") return end
+		local botteam = math.random(1, GAME_NTEAMS)
+		while botteam == p:Team() do botteam = math.random(1, GAME_NTEAMS) end
+		ZSBOTS:CreateBot(botteam, nil)
 	end
 end)
 

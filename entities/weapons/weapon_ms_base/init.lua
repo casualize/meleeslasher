@@ -256,16 +256,6 @@ do
 
 			local seq = DEF_ANM_SEQUENCES[w.m_iState][w.m_iAnim]
 			self.m_iSeqID = seq ~= nil and p:LookupSequence(seq .. (f and "_flip" or "")) or nil
-
-			-- Viewmodel stuff, unused
-			--[[
-				local vm = p:GetViewModel()
-				local lseq, ldur = unpack(defseq[s][a] ~= nil and {vm:LookupSequence(defseq[s][a])} or {vm:LookupSequence(defseq[STATE_IDLE][ANIM_NONE])})
-				vm:SendViewModelMatchingSequence(lseq)
-				local calcattack = a ~= ANIM_THRUST and w.Release * w.AngleStrike or w.Release * 90
-				local prate = s ~= STATE_ATTACK and ldur / w.Windup or ldur / calcattack
-				vm:SetPlaybackRate(prate)
-			]]
 		end
 	end
 end

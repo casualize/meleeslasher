@@ -9,12 +9,13 @@ AddCSLuaFile("vgui/progressbars.lua")
 AddCSLuaFile("vgui/emotepanel.lua")
 AddCSLuaFile("vgui/damageindicator.lua")
 AddCSLuaFile("vgui/teamselect.lua")
+AddCSLuaFile("zsbots/shared.lua")
 
 include("shared.lua")
 include("sh_globals.lua")
 include("sh_animations.lua")
 include("player_movement/shared.lua")
-include("zsbots/init.lua")
+include("zsbots/shared.lua")
 
 function GM:StaminaUpdate(ent, i, punish)
 	if IsValid(ent) and ent:IsPlayer() then
@@ -44,8 +45,8 @@ end
 
 function GM:Initialize()
 	self:AddNetworkStrings()
-	DRAW_SV_TRACERS = CreateConVar("ms_sv_debug_tracers", "0", true, false)
-	DEBUG_STATES = CreateConVar("ms_sv_debug_states", "0", true, false)
+	DRAW_SV_TRACERS = CreateConVar("ms_sv_debug_tracers", "0")
+	DEBUG_STATES = CreateConVar("ms_sv_debug_states", "0")
 end
 
 function GM:PlayerNoClip()
@@ -56,24 +57,11 @@ function GM:PlayerShouldTaunt()
 	return false
 end
 
---player_mdl = {"e_archer","e_footman","e_knight","g_archer","g_footman","g_knight","peasant"}
---p:SetModel("models/player/aoc_"..player_mdl[math.random(#player_mdl)]..".mdl")
 do
 	local cdefault = Color(255, 255, 255)
 	function GM:PlayerSpawn(p)
+		-- Female pmodels commonly use a different anim base, just to keep an eye out
 		local strModel = "models/player/Group02/male_0" .. math.random(4)*2 .. ".mdl"
-		--p:SetBodygroup(0, 1)
-		--p:SetBodygroup(1, 12)
-		
-		--[[
-		-- This includes female models... (they have different anim)
-		local strInfo = p:GetInfo("cl_playermodel")
-		for _, v in pairs(player_manager.AllValidModels()) do
-			if strInfo == valid then
-				strModel = strInfo
-			end
-		end
-		]]
 		strModel = not strModel and table.Random(player_manager.AllValidModels()) or strModel
 		p:SetModel(strModel)
 		
@@ -92,26 +80,13 @@ do
 		
 		self:StaminaUpdate(p, 100)
 		p.m_soundLowStamina = CreateSound(p, "player/breathe1.wav")
-
-		-- p:SetupHands() -- Create the hands and call GM:PlayerSetHandsModel
 	end
 end
-
---[[ Choose the model for hands according to their player model.
-function GM:PlayerSetHandsModel( ply, ent )
-	local simplemodel = player_manager.TranslateToPlayerModelName( ply:GetModel() )
-	local info = player_manager.TranslatePlayerHands( simplemodel )
-	if (info) then
-		ent:SetModel(info.model)
-		ent:SetSkin(info.skin)
-		ent:SetBodyGroups(info.body)
-	end
-end]]
 
 function GM:Think()
 	for _, p in ipairs(player.GetAll()) do
 		if CurTime() >= p.m_flPrevStamina and p.m_iStamina < p.m_iMaxStamina then
-			self:StaminaUpdate(p, p.m_iStamina + 2, false) -- terrible for net.
+			self:StaminaUpdate(p, p.m_iStamina + 2, false)
 		end
 		if CurTime() >= p.m_flPrevStamina + 4 and p:Health() < p:GetMaxHealth() then
 			p:SetHealth(p:Health() + 1)

@@ -25,7 +25,7 @@ function ENT:Initialize()
     o = self:GetOwner()
     lseq, ldur = self:LookupSequence(self:GetSequenceName(self:GetSequence()))
     timer.Simple(ldur, function()
-        ref = ClientsideRagdoll(o:GetModel()) -- ".. Bone access not allowed .." (developer 1 cvar), game bug?
+        ref = ClientsideRagdoll(o:GetModel()) -- Outputs ".. Bone access not allowed .." when convar developer is asserted?
         ref:SetOwner(o)
         TransferParams(o, ref)
         TransferBones(self, ref)

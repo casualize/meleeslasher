@@ -35,7 +35,7 @@ function PANEL:Paint()
             local dmgtotal = 0
             ref_main:Show()
             for k ,v in ipairs(DMG_DATA) do
-                -- Hate doing these tasks inside panel hooks ...
+                -- Hate doing these tasks inside panel hooks
                 if v[3] <= CurTime() then
                     table.remove(DMG_DATA, k)
                 end

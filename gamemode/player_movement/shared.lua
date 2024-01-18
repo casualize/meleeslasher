@@ -21,9 +21,6 @@ local M_GetMaxClientSpeed = M_CMoveData.GetMaxClientSpeed
 local M_GetForwardSpeed = M_CMoveData.GetForwardSpeed
 local M_GetSideSpeed = M_CMoveData.GetSideSpeed
 
-function GM:SetupMove(pl, move, cmd)
-end
-
 local fw, sd, pt, vel, mul
 function GM:Move(pl, move)
 	fw = M_GetForwardSpeed(move)

@@ -281,3 +281,100 @@ CALC_SLASH = {
 	[ANIM_UNDERCUT] = {1, -45},
 	[ANIM_THRUST] = {nil, nil}
 }
+
+-- Viewmodel stuff
+local vm = p:GetViewModel()
+local lseq, ldur = unpack(defseq[s][a] ~= nil and {vm:LookupSequence(defseq[s][a])} or {vm:LookupSequence(defseq[STATE_IDLE][ANIM_NONE])})
+vm:SendViewModelMatchingSequence(lseq)
+local calcattack = a ~= ANIM_THRUST and w.Release * w.AngleStrike or w.Release * 90
+local prate = s ~= STATE_ATTACK and ldur / w.Windup or ldur / calcattack
+vm:SetPlaybackRate(prate)
+
+SWEP.ViewModel = Model( "models/weapons/c_greatsword.mdl" ) -- Unused
+
+SWEP.ViewModelFOV = 100
+
+function CL_TRACER_DRAW(...) -- Gets called multiple times if maxplayers > 1, bug
+	local vargt = {...}
+	for _, v in ipairs(vargt) do
+		table.insert(CL_LINE_DATA, v)
+	end
+	timer.Simple(CL_TRACER_LIFETIME:GetFloat(), function()
+		for i = 1, #vargt do
+			table.remove(CL_LINE_DATA, 1)
+		end
+	end)
+end
+
+--TODO/BUG--------------------------
+--[[
+	BUG: Being outside the map boundaries will make your ActiveWeapon nil
+	BUG: Should update bone vars upon new pmodel, now it's using render hook...
+	BUG: Dying during a flip state causes it to last even during new spawn
+	TODO: Merge DamageSimple and Flinch?
+	TODO: Proper integration for lag comp
+	TODO: Red parry message (prediction support first though)
+	GAMEIDEAS: Chain riposting(1vx) multiplies your weapon damage, ...
+	STUDYTHIS: What makes bindings different from hard-coded methods like PrimaryAttack, ...
+	NETFIX: Move everything to SetDT because of better prediction, ...
+	MOVEMENT REWORK: chase mechanic, ...
+	CLEANUP: Move weapon internal vars into player, Microopt swings/thinks, Skip object constructs, IsValid checks, ...
+--]]
+------------------------------------
+
+-- player_movement ---
+
+--CACHED GLOBALS
+local math = math
+local bit = bit
+local IN_JUMP = IN_JUMP
+local IN_DUCK = IN_DUCK
+local IN_ZOOM = IN_ZOOM
+local FrameTime = FrameTime
+
+local function PressingJump(cmd)
+	return bit.band(cmd:GetButtons(), IN_JUMP) ~= 0
+end
+
+local function PressingDuck(cmd)
+	return bit.band(cmd:GetButtons(), IN_DUCK) ~= 0
+end
+
+local function PressJump(cmd, press)
+	if press then
+		cmd:SetButtons(bit.bor(cmd:GetButtons(), IN_JUMP))
+	elseif PressingJump(cmd) then
+		cmd:SetButtons(cmd:GetButtons() - IN_JUMP)
+	end
+end
+
+local function PressDuck(cmd, press)
+	if press then
+		cmd:SetButtons(bit.band(cmd:GetButtons(), IN_DUCK))
+	elseif PressingDuck(cmd) then
+		cmd:SetButtons(cmd:GetButtons() - IN_DUCK)
+	end
+end
+
+local timeduckheld = 0
+function DuckJumpAlter(cmd)
+	local p = LocalPlayer()
+	cmd:SetButtons(bit.bor(cmd:GetButtons(), IN_DUCK))
+	
+	if p.m_flJumpStartTime + 1 >= CurTime() or p:GetActiveWeapon().m_iState == STATE_ATTACK then
+		PressJump(cmd, false)
+	end
+
+	-- Anti spaz out method A. Forces player to stay ducking until 0.5s after landing if they crouch in mid-air AND disables jumping during that time.
+		-- Forces duck to be held for 0.5s after pressing it if in mid-air
+	if p:OnGround() then
+		timeduckheld = 0
+	elseif PressingDuck(cmd) then
+		timeduckheld = 0.9
+	elseif timeduckheld > 0 then
+		timeduckheld = timeduckheld - FrameTime() -- 1 tick behind?
+		PressDuck(cmd, true)
+	end
+end
+
+--------------
