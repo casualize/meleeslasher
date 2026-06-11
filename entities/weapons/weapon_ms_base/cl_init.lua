@@ -208,20 +208,18 @@ do
 		render.SetMaterial(mat)
 
 		local quads = #self.m_tPos
-		if quads != 0 then
-			render.SuppressEngineLighting(true)
-			mesh.Begin(MATERIAL_TRIANGLES, 2*quads)
-				local ok, err = pcall(function()
-				for i = 0, quads - 1 do
-					local a = self.m_tPos[i+1]
-					local b = self.m_tPos[i]
-					if a and b then
-						add_quad(b.v, a.v, b.a, a.a, self.Range, self.Range, 192, 192, 192, 55*(i/quads)^1)
-					end
+		render.SuppressEngineLighting(true)
+		mesh.Begin(MATERIAL_TRIANGLES, 2*quads)
+			local ok, err = pcall(function()
+			for i = 0, quads - 1 do
+				local a = self.m_tPos[i+1]
+				local b = self.m_tPos[i]
+				if a and b then
+					add_quad(b.v, a.v, b.a, a.a, self.Range, self.Range, 192, 192, 192, 55*(i/quads)^1)
 				end
-				end) if not ok then ErrorNoHalt(err) end
-			mesh.End()
-			render.SuppressEngineLighting(false)
-		end
+			end
+			end) if not ok then ErrorNoHalt(err) end
+		mesh.End()
+		render.SuppressEngineLighting(false)
 	end
 end
