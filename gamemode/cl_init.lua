@@ -45,7 +45,7 @@ net.Receive("ms_tracer_server", function()
 	end)
 end)
 
-net.Receive("ms_stamina_update",function()
+net.Receive("ms_stamina_update", function()
 	Player(net.ReadUInt(16)).m_iStamina = net.ReadUInt(8)
 end)
 
@@ -115,7 +115,7 @@ do
 		{
 			"gmod_undo",
 			"+menu_context",
-			"slot9"
+			"load quick"
 		},
 		{
 			true, -- LocalPlayer()
@@ -301,7 +301,7 @@ concommand.Add("ms_help", function()
 	
 	THIRDPERSON/FIRSTPERSON: +menu_context (default: C)
 	
-	THIRDPERSON VIEWANGLE LOCK: slot9 (default: 9)
+	THIRDPERSON VIEWANGLE LOCK: load quick (default: F9)
 	]]
 end)
 

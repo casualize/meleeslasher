@@ -137,12 +137,12 @@ function SWEP:Think()
 			local back2 = self.m_nThink > 32 and back or 1
 			local st = v + a:Right() * -8 + a:Right() * -iAng * 4 -- Chiv1 way of doing it, need to make it dynamic based on tickrate etc
 			local en = st + a:Up() * back2
+			o:LagCompensation(false)
 			local tr = util.TraceLine({
 				start = st,
 				endpos = en,
 				filter = self.m_tFilter
 			})
-			o:LagCompensation(false)
 			if tr.HitWorld then
 				self:AttackFinish(st, en, self.slashtag)
 				GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)

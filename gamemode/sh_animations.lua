@@ -49,6 +49,8 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 		rate = 0.1
 	end
 	ply:SetPlaybackRate( rate )
+	
+	ply:SetRenderAngles(Angle(0, ply:EyeAngles().y, 0)) -- Replaces that ugly pmodel rotation capping for full yaw control. However this means anti-spazzing method stops working.
 
 	if CLIENT then
 		local w = ply:GetActiveWeapon()
