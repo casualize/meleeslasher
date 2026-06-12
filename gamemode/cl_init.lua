@@ -97,6 +97,7 @@ function GM:InitPostEntity()
 	p.m_iEmotePanelIndices = 0
 	p.m_bEmotePanelToggle = false
 	p.m_bPerspectiveToggle = false
+	p.m_b3rdPersonViewAngleToggle = false
 	p.m_iStamina = 100
 	p.m_iMaxStamina = 100
 	p.m_eTarget = nil 
@@ -113,15 +114,18 @@ do
 	local tglfieldt = {
 		{
 			"gmod_undo",
-			"+menu_context"
+			"+menu_context",
+			"slot9"
 		},
 		{
 			true, -- LocalPlayer()
-			true -- camt 
+			true, -- camt
+			true
 		},
 		{
 			"m_bEmotePanelToggle",
-			"m_bPerspectiveToggle" -- drawviewer
+			"m_bPerspectiveToggle", -- drawviewer
+			"m_b3rdPersonViewAngleToggle"
 		}
 	}
 	-- This hook triggers anytime a bind is pressed (no hold), just FYI
@@ -130,6 +134,7 @@ do
 		-- Reset the fields, apparently doesn't set them in time :( Should put this into a more suitable hook maybe
 		tglfieldt[2][1] = LocalPlayer()
 		tglfieldt[2][2] = LocalPlayer() -- camt
+		tglfieldt[2][3] = LocalPlayer()
 
 		-- Binds that get sent to the server
 		for k, v in pairs(ATTACK_BIND) do -- Not sequential
@@ -201,6 +206,9 @@ do
 		[4] = -1,
 		[5] = -1
 	}
+	local last_y_angle = 0
+	
+	-- TODO: Prevent camera clipping in 3rd person
 	hook.Add("CalcView", "SwitchPerspective", function(_p, _v, _a)
 		-- Put this on model change call
 		for k, v in ipairs(attachment) do
@@ -220,8 +228,14 @@ do
 					_p:ManipulateBoneScale(v, Vector(1, 1, 1))
 				end
 			end
-			camt.origin = _v + Angle(0, _a[2], 0):Forward()*-64
-			camt.angles = Angle(0, _a[2], 0)
+			if _p.m_b3rdPersonViewAngleToggle then
+				camt.origin = _v + Angle(0, last_y_angle, 0):Forward()*-64
+				camt.angles = Angle(0, last_y_angle, 0)
+			else
+				last_y_angle = _a[2]
+				camt.origin = _v + Angle(0, last_y_angle, 0):Forward()*-64
+				camt.angles = Angle(0, last_y_angle, 0)
+			end
 		else
 			for _, v in ipairs(attachid) do
 				if v ~= -1 then
@@ -286,6 +300,8 @@ concommand.Add("ms_help", function()
 	it to work.
 	
 	THIRDPERSON/FIRSTPERSON: +menu_context (default: C)
+	
+	THIRDPERSON VIEWANGLE LOCK: slot9 (default: 9)
 	]]
 end)
 
