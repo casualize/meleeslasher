@@ -6,6 +6,11 @@ local function TransferParams(base, ragdoll) -- Base is owner
 	ragdoll:SetPos(base:GetPos())
 	ragdoll:SetAngles(base:GetAngles())
 	ragdoll:SetSkin(base:GetSkin())
+	
+	--for mbwarband pmodel bodygroup systems
+	ragdoll:SetBodygroup(0, base:GetBodygroup(0))
+	ragdoll:SetBodygroup(1, base:GetBodygroup(1))
+	ragdoll:SetBodygroup(2, base:GetBodygroup(2))
 end
 
 local function TransferBones(base, ragdoll) -- Base is the entity, not owner
@@ -44,7 +49,7 @@ function ENT:Initialize()
             ref:ManipulateBoneScale(bid, Vector())
             ]]
 
-            timer.Simple(8, function()
+            timer.Simple(16, function()
                 if IsValid(ref) then
                     ref:Remove()
                     ref = nil

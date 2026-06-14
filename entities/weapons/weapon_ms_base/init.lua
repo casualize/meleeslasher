@@ -98,7 +98,7 @@ end
 function SWEP:CheckMulti(p, hitgroup)
 	local o = self:GetOwner()
 	local amount = hitgroup == HITGROUP_HEAD and 2 or 1
-	return o:Team() ~= p:Team() and amount or amount * 0.2
+	return (o:Team() ~= p:Team() or p:Team() == TEAM_FFA) and amount or amount * 0.2
 end
 function SWEP:Think()
 	local o = self:GetOwner()
@@ -151,7 +151,7 @@ function SWEP:Think()
 			end
 			if tr.Entity ~= NULL and tr.Entity ~= o then
 				if type(tr.Entity) == "Player" and tr.Entity:GetActiveWeapon() then
-					if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY or o:Team() == tr.Entity:Team() then -- PARRY
+					if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY or (o:Team() == tr.Entity:Team() and o:Team() ~= TEAM_FFA) then -- PARRY
 						if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY then
 							self:Riposte(tr.Entity) -- RIPOSTE and PARRY
 						else

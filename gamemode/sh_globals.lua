@@ -70,11 +70,25 @@ DEF_ANM_SEQUENCES = {
 }
 
 -- Other globals
+TEAM_FFA = 1003
+TEAM_RED = 1
+TEAM_BLUE = 2
+TEAM_GREEN = 3
+TEAM_YELLOW = 4
+
 GAME_MVSPEED = 100
-GAME_NTEAMS = 4
+GAME_NTEAMS = 2 -- not really used anymore, using gametypes instead
 GAME_TEAMCTABLE = {
-	[1] = Color(150, 0, 0),
-	[2] = Color(0, 11, 170),
-	[3] = Color(0, 201, 50),
-	[4] = Color(207, 187, 0)
+	[TEAM_FFA] = Color(66, 66, 66),
+	[TEAM_RED] = Color(150, 0, 0),
+	[TEAM_BLUE] = Color(0, 11, 170),
+	[TEAM_GREEN] = Color(0, 201, 50),
+	[TEAM_YELLOW] = Color(207, 187, 0)
+}
+GAME_MBWARBAND_TEAMMAPPING = {
+	[TEAM_FFA] = "042",
+	[TEAM_RED] = "033",
+	[TEAM_BLUE] = "0h0",
+	[TEAM_GREEN] = "0b4",
+	[TEAM_YELLOW] = "022"
 }

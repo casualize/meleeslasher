@@ -15,6 +15,9 @@ function PANEL:Init()
     ref_main:SetSize(self:GetSize())
     ref_main:ShowCloseButton(false)
     ref_main:SetDraggable(false)
+	
+	ref_main.Paint = function( self, w, h )
+	end
 
     for i = 1, 10 do
         ref_slot[i] = vgui.Create("DLabel", ref_main)

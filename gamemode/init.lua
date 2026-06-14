@@ -9,6 +9,7 @@ AddCSLuaFile("vgui/progressbars.lua")
 AddCSLuaFile("vgui/emotepanel.lua")
 AddCSLuaFile("vgui/damageindicator.lua")
 AddCSLuaFile("vgui/teamselect.lua")
+AddCSLuaFile("vgui/gt_skirmish.lua")
 AddCSLuaFile("zsbots/shared.lua")
 
 include("shared.lua")
@@ -16,6 +17,11 @@ include("sh_globals.lua")
 include("sh_animations.lua")
 include("player_movement/shared.lua")
 include("zsbots/shared.lua")
+
+AddCSLuaFile("gametypes/skirmish/cl_init.lua")
+AddCSLuaFile("gametypes/skirmish/shared.lua")
+include("gametypes/skirmish/shared.lua")
+include("gametypes/skirmish/init.lua")
 
 function GM:StaminaUpdate(ent, i, punish)
 	if IsValid(ent) and ent:IsPlayer() then
@@ -31,7 +37,6 @@ function GM:StaminaUpdate(ent, i, punish)
 	end
 end
 
--- forgive me!!!
 function GM:AddNetworkStrings()
 	util.AddNetworkString("ms_tracer_server")
 	util.AddNetworkString("ms_stamina_update")
@@ -41,50 +46,123 @@ function GM:AddNetworkStrings()
 	util.AddNetworkString("ms_emote") -- sv/cl
 	util.AddNetworkString("ms_damageindicator")
 	util.AddNetworkString("ms_team_update")
+	
+	util.AddNetworkString("ms_sync_gametypeinfo")
+	util.AddNetworkString("ms_gt_skirmish_sync_gameinfo")
 end
+
+DRAW_SV_TRACERS = CreateConVar("ms_sv_debug_tracers", "0")
+PLAYERMODEL_TYPE = CreateConVar("ms_sv_playermodel_type", "mbwarband", {FCVAR_ARCHIVE}, "possible values: hl2, mbwarband")
+DEBUG_STATES = CreateConVar("ms_sv_debug_states", "0")
+
+GAMETYPE = "default"
+GAMETYPE_CONVAR = CreateConVar("ms_sv_next_gametype", "skirmish", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "possible values: skirmish, ffa, tdm") -- shouldn't change this midgame, do it when the game is over. need a different solution
+GAMETYPE = GAMETYPE_CONVAR:GetString()
 
 function GM:Initialize()
 	self:AddNetworkStrings()
-	DRAW_SV_TRACERS = CreateConVar("ms_sv_debug_tracers", "0")
-	DEBUG_STATES = CreateConVar("ms_sv_debug_states", "0")
+
+	if game.SinglePlayer() then
+		print("Singleplayer session detected, leave to main menu, open console and type 'maxplayers 2' or any number of players preferred and then 'map ms_contraband_v2' or any map preffered.")
+	end
+	
+	if util.IsValidModel("models/players/PlateKnight1.mdl") == false then
+		print("mbwarband playermodels arent found! fallbacking to hl2 playermodels")
+		PLAYERMODEL_TYPE:SetString("hl2")
+	end
+	
+	if GAMETYPE == "skirmish" then
+		for _, v in ipairs({"PlayerChangedTeam", "PlayerDisconnected", "PostPlayerDeath", "PlayerSpawn", "PlayerDeathThink"}) do
+			hook.Add(v, "gt_skirmish_" .. v, GT_SKIRMISH[v])
+		end
+	end
+	if GAMETYPE == "ffa" then
+		GAME_NTEAMS = 1
+	end
+	if GAMETYPE == "tdm" then
+		GAME_NTEAMS = 2
+	end
 end
 
+function GM:OnPlayerChangedTeam()  -- this "deprecated" function was causing spectator to freely spawn into the map after team change. spent ages troubleshooting this issue
+end
+
+function GM:PlayerInitialSpawn(p)
+	-- unused. started using convar sv/cl replication system instead
+	net.Start("ms_sync_gametypeinfo")
+		net.WriteString(GAMETYPE)
+	net.Send(p)
+	
+	p:ConCommand( "gm_showteam" )
+end
+
+-- function GM:PlayerJoinTeam() -- might want to look into this one as well
 function GM:PlayerNoClip()
 	return true
 end
-
 function GM:PlayerShouldTaunt()
 	return false
+end
+function GM:CanPlayerSuicide(p)
+	if p:Team() == TEAM_SPECTATOR or p:Team() == TEAM_UNASSIGNED or p:Team() == TEAM_CONNECTING then
+		return false
+	else
+		return true
+	end
 end
 
 do
 	local cdefault = Color(255, 255, 255)
 	function GM:PlayerSpawn(p)
-		-- Female pmodels commonly use a different anim base, just to keep an eye out
-		local strModel = "models/player/Group02/male_0" .. math.random(4)*2 .. ".mdl"
-		strModel = not strModel and table.Random(player_manager.AllValidModels()) or strModel
-		p:SetModel(strModel)
+		if p:Team() == TEAM_SPECTATOR or p:Team() == TEAM_UNASSIGNED or p:Team() == TEAM_CONNECTING then
+			self:PlayerSpawnAsSpectator(p) --stops new players from "suiciding" when joining a team
+			p:Spectate(OBS_MODE_ROAMING)
+			return
+		else
+			p:UnSpectate()
+		end
 		
-		local tovec = GAME_TEAMCTABLE[p:Team()] ~= nil and GAME_TEAMCTABLE[p:Team()] or cdefault
-		p:SetPlayerColor(Vector(tovec["r"] / 255, tovec["g"] / 255, tovec["b"] / 255))
+		-- Female pmodels commonly use a different anim base, just to keep an eye out
+		local bodygroup = "012"
+		local strModel = "models/player/breen.mdl" -- default pmodel
+		if PLAYERMODEL_TYPE:GetString() == "hl2" then
+			strModel = "models/player/Group02/male_0" .. math.random(4)*2 .. ".mdl"
+			local tovec = GAME_TEAMCTABLE[p:Team()] ~= nil and GAME_TEAMCTABLE[p:Team()] or cdefault
+			p:SetPlayerColor(Vector(tovec["r"] / 255, tovec["g"] / 255, tovec["b"] / 255))
+			strModel = not strModel and table.Random(player_manager.AllValidModels()) or strModel
+		elseif PLAYERMODEL_TYPE:GetString() == "mbwarband" then
+			strModel = "models/players/PlateKnight1.mdl"
+			if p:Team() <= #GAME_MBWARBAND_TEAMMAPPING and p:Team() > 0 then
+				bodygroup = GAME_MBWARBAND_TEAMMAPPING[p:Team()]
+			else
+				bodygroup = GAME_MBWARBAND_TEAMMAPPING[TEAM_FFA]
+			end
+		end
+		p:SetModel(strModel)
+		p:SetBodyGroups(bodygroup) -- set body groups only after setting the model first
 		
 		p:Give("weapon_ms_base")
 		p:SetCanZoom(false)
 		
 		p:SetWalkSpeed(GAME_MVSPEED)
 		p:SetRunSpeed(GAME_MVSPEED)
-		
+	
 		p.m_flPrevStamina = 0.0
 		p.m_iStamina = 100
 		p.m_iMaxStamina = 100
 		
 		self:StaminaUpdate(p, 100)
 		p.m_soundLowStamina = CreateSound(p, "player/breathe1.wav")
+		
+		p.m_bPlayerSpawned = true
+		p:SetBodyGroups(bodygroup)
 	end
 end
 
 function GM:Think()
 	for _, p in ipairs(player.GetAll()) do
+		if not p.m_bPlayerSpawned then continue end
+		
 		if CurTime() >= p.m_flPrevStamina and p.m_iStamina < p.m_iMaxStamina then
 			self:StaminaUpdate(p, p.m_iStamina + 2, false)
 		end
@@ -106,9 +184,10 @@ function GM:Think()
 	end
 end
 
+-- no longer used. started using official implementation of team joining system
 net.Receive("ms_team_update", function(_, p)
 	p:SetTeam(net.ReadUInt(8))
-	p:Spawn()
+	p:Kill()
 end)
 net.Receive("ms_anim_queue", function(_, p)
 	local w = p:GetActiveWeapon()
@@ -155,13 +234,16 @@ function GM:EntityTakeDamage(ent, info)
 end
 
 function GM:DoPlayerDeath(p, att, info)
-
 	local ref = ents.Create("prop_corpse")
 	ref:SetOwner(p)
 	ref:Spawn()
 	
 	p:AddDeaths(1)
-	if att:IsValid() and att ~= p and type(att) == "Player" then
-		att:AddFrags(1)
+	if att:IsValid() and type(att) == "Player" then
+		if att ~= p and (att:Team() ~= p:Team() or att:Team() == TEAM_FFA) then
+			att:AddFrags(1)
+		else
+			att:AddFrags(-1)
+		end
 	end
 end

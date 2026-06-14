@@ -23,7 +23,7 @@ function GM:HandlePlayerDucking( ply, velocity )
 		ply.CalcSeqOverride = ply:LookupSequence("cwalk_ms")
 	else
 		ply.CalcIdeal = -1 -- ACT_MP_CROUCH_IDLE
-		ply.CalcSeqOverride = ply:LookupSequence("cidle_ms")
+		ply.CalcSeqOverride = ply:LookupSequence("cwalk_ms")
 	end
 
 	return true
@@ -58,7 +58,7 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 			local incr = w.m_iState ~= STATE_ATTACK and FrameTime() / w.Windup or FrameTime() / (w.Release * w.AngleStrike)
 			local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
 			local seqid = seq and ply:LookupSequence(seq .. (w.m_bFlip and "_flip" or "")) or nil
-			--if not seqid then return end
+			-- if not seqid then return end -- prevents "AddVCDSequenceToGestureSlot" console error, but this line might impair the animation system
 			if w.m_iState == STATE_WINDUP then -- Feint init
 				w.m_flWeight = math.Approach( w.m_flWeight, 1, incr)
 				ply:AddVCDSequenceToGestureSlot(0, seqid, 0, true)

@@ -8,7 +8,11 @@ include("vgui/progressbars.lua")
 include("vgui/emotepanel.lua")
 include("vgui/damageindicator.lua")
 include("vgui/teamselect.lua")
+include("vgui/gt_skirmish.lua")
 include("zsbots/shared.lua")
+
+include("gametypes/skirmish/cl_init.lua")
+include("gametypes/skirmish/shared.lua")
 
 ATTACK_BIND = {
 	-- [ANIM_STRIKE]= "+attack",
@@ -26,6 +30,10 @@ CLIENT_BIND = {
 CL_FOV = CreateConVar("ms_cl_fov", "120")
 CL_SHOW_DAMAGEINDICATOR = CreateConVar("ms_cl_show_damageindicator", "1")
 SV_TRACER_LIFETIME = CreateConVar("ms_cl_sv_tracers_lifetime", "1")
+
+GAMETYPE = "default"
+GAMETYPE_CONVAR = CreateConVar("ms_sv_next_gametype", "skirmish", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "possible values: skirmish, ffa, tdm")
+GAMETYPE = GAMETYPE_CONVAR:GetString()
 
 local CL_LINE_DATA = {}
 local SV_LINE_DATA = {}
@@ -70,6 +78,11 @@ net.Receive("ms_emote", function()
 	p:AddVCDSequenceToGestureSlot(GESTURE_SLOT_VCD, p:LookupSequence(DEF_EMOTE[e]), 0, true)
 end)
 
+-- unused. started using convar sv/cl replication system instead
+net.Receive("ms_sync_gametypeinfo", function()
+	local temp = net.ReadString()
+end)
+
 DMG_DATA = {}
 net.Receive("ms_damageindicator", function()
 	local dmgtable = {
@@ -98,6 +111,7 @@ function GM:InitPostEntity()
 	p.m_bEmotePanelToggle = false
 	p.m_bPerspectiveToggle = false
 	p.m_b3rdPersonViewAngleToggle = false
+	p.m_bTeamSelectToggle = true
 	p.m_iStamina = 100
 	p.m_iMaxStamina = 100
 	p.m_eTarget = nil 
@@ -115,17 +129,20 @@ do
 		{
 			"gmod_undo",
 			"+menu_context",
-			"load quick"
+			"load quick",
+			"gm_showspare2"
 		},
 		{
 			true, -- LocalPlayer()
 			true, -- camt
+			true,
 			true
 		},
 		{
 			"m_bEmotePanelToggle",
 			"m_bPerspectiveToggle", -- drawviewer
-			"m_b3rdPersonViewAngleToggle"
+			"m_b3rdPersonViewAngleToggle",
+			"m_bTeamSelectToggle"
 		}
 	}
 	-- This hook triggers anytime a bind is pressed (no hold), just FYI
@@ -135,6 +152,7 @@ do
 		tglfieldt[2][1] = LocalPlayer()
 		tglfieldt[2][2] = LocalPlayer() -- camt
 		tglfieldt[2][3] = LocalPlayer()
+		tglfieldt[2][4] = LocalPlayer()
 
 		-- Binds that get sent to the server
 		for k, v in pairs(ATTACK_BIND) do -- Not sequential
@@ -222,30 +240,35 @@ do
 		end
 		
 		camt.fov = CL_FOV:GetInt()
-		if _p.m_bPerspectiveToggle then
-			for _, v in ipairs(attachid) do
-				if v ~= -1 then
-					_p:ManipulateBoneScale(v, Vector(1, 1, 1))
+		if _p:Alive() and _p:Team() ~= TEAM_SPECTATOR and _p:Team() ~= TEAM_UNASSIGNED and _p:Team() ~= TEAM_CONNECTING then
+			if _p.m_bPerspectiveToggle then
+				for _, v in ipairs(attachid) do
+					if v ~= -1 then
+						_p:ManipulateBoneScale(v, Vector(1, 1, 1))
+					end
 				end
-			end
-			if _p.m_b3rdPersonViewAngleToggle then
-				camt.origin = _v + Angle(0, last_y_angle, 0):Forward()*-64
-				camt.angles = Angle(0, last_y_angle, 0)
+				if _p.m_b3rdPersonViewAngleToggle then
+					camt.origin = _v + Angle(0, last_y_angle, 0):Forward()*-64
+					camt.angles = Angle(0, last_y_angle, 0)
+				else
+					last_y_angle = _a[2]
+					camt.origin = _v + Angle(0, last_y_angle, 0):Forward()*-64
+					camt.angles = Angle(0, last_y_angle, 0)
+				end
 			else
-				last_y_angle = _a[2]
-				camt.origin = _v + Angle(0, last_y_angle, 0):Forward()*-64
-				camt.angles = Angle(0, last_y_angle, 0)
+				for _, v in ipairs(attachid) do
+					if v ~= -1 then
+						_p:ManipulateBoneScale(v, Vector())
+					end
+				end
+				if attachid[1] ~= -1 then
+					camt.origin = _p:GetBonePosition(attachid[1]) + Angle(0, _a[2], 0):Forward()*-2 + Angle(0, _a[2], 0):Up()*2
+					camt.angles = nil
+				end
 			end
 		else
-			for _, v in ipairs(attachid) do
-				if v ~= -1 then
-					_p:ManipulateBoneScale(v, Vector())
-				end
-			end
-			if attachid[1] ~= -1 then
-				camt.origin = _p:GetBonePosition(attachid[1]) + Angle(0, _a[2], 0):Forward()*-2 + Angle(0, _a[2], 0):Up()*2
-				camt.angles = nil
-			end
+			camt.origin = _p:EyePos()
+			camt.angles = _a
 		end
 		return camt
 	end)
@@ -302,6 +325,8 @@ concommand.Add("ms_help", function()
 	THIRDPERSON/FIRSTPERSON: +menu_context (default: C)
 	
 	THIRDPERSON VIEWANGLE LOCK: load quick (default: F9)
+	
+	CHANGE TEAM: gm_showteam (default: F2)
 	]]
 end)
 
@@ -310,7 +335,7 @@ function GM:PlayerTick(p, mv) -- Provides CMoveData context, works only on maxpl
 end
 
 -- Sets target for progressbars vgui
-hook.Add("CalcViewModelView", "ms_SetTarget", function() 
+hook.Add("Think", "ms_SetTarget", function() 
 	local p = LocalPlayer()
 	p.m_eTarget = (IsValid(p:GetEyeTrace().Entity) and type(p:GetEyeTrace().Entity) == "Player") and p:GetEyeTrace().Entity or nil
 end)
@@ -323,7 +348,8 @@ function GM:BuildUserInterface()
 	self.ProgressBars = vgui.Create("ProgressBars")
 	self.EmotePanel = vgui.Create("EmotePanel")
 	self.DamageIndicator = vgui.Create("DamageIndicator")
-	self.TeamSelect = vgui.Create("TeamSelect")
+	--self.TeamSelect = vgui.Create("TeamSelect") -- no longer used. started using official implementation of team joining system
+	self.gt_Skirmish = vgui.Create("gt_Skirmish")
 end
 
 function GM:Initialize()
@@ -376,7 +402,7 @@ do
 		["CHudAmmo"] = true,
 		["CHudSecondaryAmmo"] = true,
 		["CHudWeaponSelection"] = true,
-		["CHudGMod"] = true, -- Disables hudpaint hook
+		["CHudGMod"] = true, -- Disables hudpaint hook, this also disables killfeed unfortunately
 		["CHudDamageIndicator"] = true
 	}
 	hook.Add("HUDShouldDraw", "ms_HideHUD", function(name)

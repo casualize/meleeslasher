@@ -4,6 +4,7 @@ local ref_main
 
 local x, y
 function PANEL:Init()
+	local p = LocalPlayer()
 
 	self:SetSize((ScrW() / 8) * (GAME_NTEAMS < 6 and GAME_NTEAMS or 6), ScrW() / 8)
     x, y = self:GetSize()
@@ -29,21 +30,41 @@ function PANEL:Init()
         ref_slot[i]:SetPos((i - 1) * x, 0)
         local doubleref = ref_slot[i]
         function doubleref:DoClick()
-            net.Start("ms_team_update")
-                net.WriteUInt(i, 8)
-            net.SendToServer()
+			if i ~= p:Team() then
+				net.Start("ms_team_update")
+					if GAME_NTEAMS == 1 then
+						net.WriteUInt(0, 8)
+					else
+						net.WriteUInt(i, 8)
+					end
+				net.SendToServer()
+			end
 
             -- lol
             self:GetParent():GetParent():KillFocus()
             self:GetParent():GetParent():SetKeyboardInputEnabled(false)
             self:GetParent():GetParent():SetMouseInputEnabled(false)
-            self:GetParent():GetParent():Remove()
+            --self:GetParent():GetParent():Remove()
+			p.m_bTeamSelectToggle = false
         end
     end
 end
 
+-- PANEL = vgui.RegisterTable(PANEL, "DPanel") -- converts the table into a "panel" table
+
 function PANEL:Paint()
 
+	local p = LocalPlayer()
+	
+    if p or p["m_bTeamSelectToggle"] then
+        if p.m_bTeamSelectToggle ~= true then
+            ref_main:Hide()
+        else
+            ref_main:Show()
+            self:SetKeyboardInputEnabled(true)
+            self:SetMouseInputEnabled(true)
+		end
+	end
 end
 
 vgui.Register("TeamSelect", PANEL, "DPanel")

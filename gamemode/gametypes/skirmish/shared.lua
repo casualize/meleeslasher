@@ -1,0 +1,25 @@
+GT_SKIRMISH = {}
+
+GT_SKIRMISH.Name = "skirmish"
+GT_SKIRMISH.MaxRoundsToWin = 10
+GT_SKIRMISH.RoundTime = 120
+
+GT_SKIRMISH.WAITING = 1
+GT_SKIRMISH.INTERMISSION = 2
+GT_SKIRMISH.ONGOING = 3
+GT_SKIRMISH.ROUNDOVER = 4
+GT_SKIRMISH.GAMEOVER = 5
+
+DEF_GT_SKIRMISH_STATES = {
+	[GT_SKIRMISH.WAITING] = "waiting",
+	[GT_SKIRMISH.INTERMISSION] = "intermission",
+	[GT_SKIRMISH.ONGOING] = "ongoing",
+	[GT_SKIRMISH.ROUNDOVER] = "roundover",
+	[GT_SKIRMISH.GAMEOVER] = "gameover"
+}
+
+GT_SKIRMISH.cl_tr_s = 0
+GT_SKIRMISH.cl_tb_s = 0
+GT_SKIRMISH.cl_state = "default"
+GT_SKIRMISH.cl_winning = -1
+GT_SKIRMISH.cl_timeoutend = 0.0

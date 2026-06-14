@@ -6,7 +6,12 @@ function ENT:Initialize()
 
     self:SetPos(o:GetPos())
     self:SetAngles(o:GetAngles())
-    self:SetModel(o:GetModel())
+	self:SetModel(o:GetModel())
+	
+	--for mbwarband pmodel bodygroup systems
+	self:SetBodygroup(0, o:GetBodygroup(0))
+	self:SetBodygroup(1, o:GetBodygroup(1))
+	self:SetBodygroup(2, o:GetBodygroup(2))
 
     local mr = math.random(1, 4)
     local lseq, ldur = self:LookupSequence("death_0" .. mr)

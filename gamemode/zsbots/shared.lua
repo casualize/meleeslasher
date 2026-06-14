@@ -253,10 +253,10 @@ function ZSBOTS.Think()
 		bot.PathableTargets = {}
 
 		for __, pl in ipairs(player.GetAll()) do
-			if pl:Team() ~= bot:Team() and  pl:Alive() and pl:GetObserverMode() == OBS_MODE_NONE then
+			if (pl:Team() ~= bot:Team() or (bot:Team() == TEAM_FFA and pl ~= bot)) and  pl:Alive() and pl:GetObserverMode() == OBS_MODE_NONE and pl:Team() ~= TEAM_SPECTATOR then
 				table.insert(bot.PathableTargets, pl)
 			elseif pl:IsBot() and not pl:Alive() then
-				gamemode.Call("PlayerDeathThink", pl)
+				-- gamemode.Call("PlayerDeathThink", pl) -- i dont know what this is for, commenting this
 			end
 		end
 		
@@ -297,6 +297,10 @@ end
 
 function ZSBOTS:CreateBot(teamid, name)
 	if game.SinglePlayer() then return end
+	if #player.GetAll() >= game.MaxPlayers() then
+		print("Too many players")
+		return
+	end
 
 	if not navmesh.IsLoaded() then
 		print("No navmesh - can't create bot. Try ms_createnavmesh")
@@ -312,8 +316,11 @@ function ZSBOTS:CreateBot(teamid, name)
 	if pl:IsValid() then
 		pl.m_bZSBot = true
 
-		pl:SetTeam(teamid)
-		pl:Spawn()
+		-- pl:SetTeam(teamid)
+		gamemode.Call("PlayerJoinTeam", pl, teamid) -- workaround for "changeteam" concommand equivalent for a bot
+		if GAMETYPE ~= "skirmish" then -- bad code
+			pl:Spawn()
+		end
 
 		local nb = ents.Create("zsbotnb")
 		nb:SetPos(pl:GetPos())
@@ -367,7 +374,7 @@ end
 
 -- Recalling hook.add will override the function() ? This may cause issues
 function ZSBOTS:AddOrRemoveHooks()
-	for _, v in ipairs({"StartCommand", "Think", "PlayerTick", "DoPlayerDeath", "PlayerDisconnected"}) do
+	for _, v in ipairs({"StartCommand", "Think", "PlayerTick", "PlayerDisconnected"}) do
 		hook[#REF_ZSBOTS ~= 0 and "Add" or "Remove"](v, "ZSBOTS_" .. v, self[v]) -- Last arg is only for "Add"
 	end
 end
@@ -510,7 +517,7 @@ end
 function meta:EnemyChanged(old_enemy)
 	self.TargetAcquireTime = CurTime()
 	if not self.CurrentEnemy:IsValid() then
-		self:OnTargetLost()
+		-- self:OnTargetLost() -- some target loss handling, don't remember why i removed this method. stops lua errors by commenting this out though
 	end
 end
 
@@ -542,10 +549,13 @@ end)
 
 concommand.Add("ms_createbot", function(p)
 	if p:IsSuperAdmin() then
-		if GAME_NTEAMS <= 1 then print("Not enough teams!") return end
-		local botteam = math.random(1, GAME_NTEAMS)
-		while botteam == p:Team() do botteam = math.random(1, GAME_NTEAMS) end
-		ZSBOTS:CreateBot(botteam, nil)
+		if GAMETYPE == "ffa" then
+			ZSBOTS:CreateBot(TEAM_FFA, nil)
+		elseif GAMETYPE == "tdm" or GAMETYPE == "skirmish" then
+			local botteam = math.random(1, 2)
+			while botteam == p:Team() do botteam = math.random(1, 2) end -- so it joins opposite team of the caller of this command
+			ZSBOTS:CreateBot(botteam, nil)
+		end
 	end
 end)
 
