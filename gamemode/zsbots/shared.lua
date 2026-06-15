@@ -250,6 +250,7 @@ function ZSBOTS.Think()
 
 	-- This is significantly cheaper than pathfinding to all valid targets.
 	for _, bot in ipairs(REF_ZSBOTS) do
+		if bot.m_bZSBottype ~= "default" then continue end
 		bot.PathableTargets = {}
 
 		for __, pl in ipairs(player.GetAll()) do
@@ -295,7 +296,7 @@ function ZSBOTS.Think()
 	end
 end
 
-function ZSBOTS:CreateBot(teamid, name)
+function ZSBOTS:CreateBot(teamid, name, bottype)
 	if game.SinglePlayer() then return end
 	if #player.GetAll() >= game.MaxPlayers() then
 		print("Too many players")
@@ -315,11 +316,15 @@ function ZSBOTS:CreateBot(teamid, name)
 	local pl = player.CreateNextBot(name)
 	if pl:IsValid() then
 		pl.m_bZSBot = true
+		pl.m_bZSBottype = bottype
 
 		-- pl:SetTeam(teamid)
 		gamemode.Call("PlayerJoinTeam", pl, teamid) -- workaround for "changeteam" concommand equivalent for a bot
 		if GAMETYPE ~= "skirmish" then -- bad code
 			pl:Spawn()
+			if pl.m_bZSBottype == "goddummy" then
+				pl:SetHealth(100000)
+			end
 		end
 
 		local nb = ents.Create("zsbotnb")
@@ -547,14 +552,24 @@ concommand.Add("ms_createnavmesh", function(p)
 	end
 end)
 
-concommand.Add("ms_createbot", function(p)
+concommand.Add("ms_createbot", function(p, cmd, args)
 	if p:IsSuperAdmin() then
+		bottype = "default"
+		if args[1] then
+			local arg = tostring(args[1])
+			if arg == "goddummy" then
+				bottype = "goddummy"
+			elseif arg == "dummy" then
+				bottype = "dummy"
+			end
+		end
+		
 		if GAMETYPE == "ffa" then
-			ZSBOTS:CreateBot(TEAM_FFA, nil)
+			ZSBOTS:CreateBot(TEAM_FFA, nil, bottype)
 		elseif GAMETYPE == "tdm" or GAMETYPE == "skirmish" then
 			local botteam = math.random(1, 2)
 			while botteam == p:Team() do botteam = math.random(1, 2) end -- so it joins opposite team of the caller of this command
-			ZSBOTS:CreateBot(botteam, nil)
+			ZSBOTS:CreateBot(botteam, nil, bottype)
 		end
 	end
 end)

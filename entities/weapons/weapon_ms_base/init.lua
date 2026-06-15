@@ -61,8 +61,9 @@ function SWEP:DamageSimple(iAng, ent, multi)
 	end
 	local d = DamageInfo()
 	d:SetDamage(dmg)
+	d:SetDamageBonus(dmg * multi - dmg) -- its one way to communicate that its a headshot to a client. doesn't do anything else otherwise
 	d:SetAttacker(self:GetOwner())
-	d:SetInflictor(self:GetOwner())
+	d:SetInflictor(self)
 	d:SetDamageType(DMG_SLASH)
 	
 	SuppressHostEvents(NULL) -- this is needed to see blood effect done by the client...
@@ -98,9 +99,15 @@ function SWEP:Attack()
 	self.m_bQueuedFlip = false
 end
 
-function SWEP:CheckMulti(p, hitgroup)
+function SWEP:CheckMulti(p, hitgroup, hitboxid)
 	local o = self:GetOwner()
-	local amount = hitgroup == HITGROUP_HEAD and 2 or 1
+	local amount = 1
+	if hitgroup == HITGROUP_HEAD then
+		amount = 1.8
+	end
+	if p:GetModel() == "models/players/plateknight1.mdl" and (hitboxid == 6 or hitboxid == 7) then -- workaround for this model having awful hitboxes
+		amount = 1.8
+	end
 	return (o:Team() ~= p:Team() or p:Team() == TEAM_FFA) and amount or amount * 0.2
 end
 function SWEP:Think()
@@ -158,7 +165,7 @@ function SWEP:Think()
 						if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY then
 							self:Riposte(tr.Entity) -- RIPOSTE and PARRY
 						else
-							self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity,tr.HitGroup))
+							self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity, tr.HitGroup, tr.HitBox))
 						end
 						GAMEMODE:StaminaUpdate(o, nil, true)
 						self:AttackFinish(st, en, self.slashtag)
@@ -175,14 +182,14 @@ function SWEP:Think()
 							if not bFilter then
 								self:Flinch(tr.Entity)
 								GAMEMODE:StaminaUpdate(o, o.m_iStamina + 40, true)
-								self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity,tr.HitGroup))
+								self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity, tr.HitGroup,  tr.HitBox))
 								
 								self.m_tFilter[#self.m_tFilter + 1] = tr.Entity
 							end
 						else
 							self:Flinch(tr.Entity)
 							GAMEMODE:StaminaUpdate(o, o.m_iStamina + 40, true)
-							self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity,tr.HitGroup))
+							self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity, tr.HitGroup,  tr.HitBox))
 							self:AttackFinish(st, en, self.slashtag)
 							break
 						end

@@ -52,7 +52,7 @@ function GM:AddNetworkStrings()
 end
 
 DRAW_SV_TRACERS = CreateConVar("ms_sv_debug_tracers", "0")
-PLAYERMODEL_TYPE = CreateConVar("ms_sv_playermodel_type", "mbwarband", {FCVAR_ARCHIVE}, "possible values: hl2, mbwarband")
+PLAYERMODEL_TYPE = CreateConVar("ms_sv_playermodel_type", "mbwarband", {FCVAR_ARCHIVE}, "possible values: hl2, mbwarband, burnedknight")
 DEBUG_STATES = CreateConVar("ms_sv_debug_states", "0")
 
 GAMETYPE = "default"
@@ -68,6 +68,10 @@ function GM:Initialize()
 	
 	if util.IsValidModel("models/players/PlateKnight1.mdl") == false then
 		print("mbwarband playermodels arent found! fallbacking to hl2 playermodels")
+		PLAYERMODEL_TYPE:SetString("hl2")
+	end
+	if util.IsValidModel("models/player/recon/chaosknight/ck_pm.mdl") == false then
+		print("burnedknight playermodels arent found! fallbacking to hl2 playermodels")
 		PLAYERMODEL_TYPE:SetString("hl2")
 	end
 	
@@ -130,15 +134,25 @@ do
 			local tovec = GAME_TEAMCTABLE[p:Team()] ~= nil and GAME_TEAMCTABLE[p:Team()] or cdefault
 			p:SetPlayerColor(Vector(tovec["r"] / 255, tovec["g"] / 255, tovec["b"] / 255))
 			strModel = not strModel and table.Random(player_manager.AllValidModels()) or strModel
-		elseif PLAYERMODEL_TYPE:GetString() == "mbwarband" then
+		elseif PLAYERMODEL_TYPE:GetString() == "mbwarband" then -- pretty decent model but awful hitboxes
 			strModel = "models/players/PlateKnight1.mdl"
 			if p:Team() <= #GAME_MBWARBAND_TEAMMAPPING and p:Team() > 0 then
 				bodygroup = GAME_MBWARBAND_TEAMMAPPING[p:Team()]
 			else
 				bodygroup = GAME_MBWARBAND_TEAMMAPPING[TEAM_FFA]
 			end
+		elseif PLAYERMODEL_TYPE:GetString() == "burnedknight" then -- perfect hitboxes but big shoulder pads
+			strModel = "models/player/recon/chaosknight/ck_pm.mdl"
 		end
 		p:SetModel(strModel)
+		if PLAYERMODEL_TYPE:GetString() == "burnedknight" then -- set color only after setting the model first
+			local tc = GAME_TEAMCTABLE[p:Team()]
+			local rc = Color(255, 255, 255)
+			if p:Team() ~= TEAM_FFA then
+				rc = Color(math.Clamp(tc.r * 10, 192, 255), math.Clamp(tc.g * 10, 192, 255), math.Clamp(tc.b * 10, 192, 255), 255)
+			end
+			p:SetColor(rc)
+		end
 		p:SetBodyGroups(bodygroup) -- set body groups only after setting the model first
 		
 		p:Give("weapon_ms_base")
@@ -218,11 +232,13 @@ end)
 function GM:EntityTakeDamage(ent, info)
 	if type(ent) == "Player" then
 		local dmg = info:GetDamage()
+		local dmgbonus = info:GetDamageBonus()
 
 		if type(info:GetAttacker()) == "Player" then
 			net.Start("ms_damageindicator")
 				net.WriteUInt(ent:UserID(), 16)
 				net.WriteUInt(dmg, 16)
+				net.WriteBool(dmgbonus)
 			net.Send(info:GetAttacker())
 		end
 

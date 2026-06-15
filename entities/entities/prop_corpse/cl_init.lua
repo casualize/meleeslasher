@@ -11,6 +11,9 @@ local function TransferParams(base, ragdoll) -- Base is owner
 	ragdoll:SetBodygroup(0, base:GetBodygroup(0))
 	ragdoll:SetBodygroup(1, base:GetBodygroup(1))
 	ragdoll:SetBodygroup(2, base:GetBodygroup(2))
+	
+	--for burnedknight color workaround
+	ragdoll:SetColor(base:GetColor())
 end
 
 local function TransferBones(base, ragdoll) -- Base is the entity, not owner

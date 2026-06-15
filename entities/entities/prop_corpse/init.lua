@@ -7,6 +7,7 @@ function ENT:Initialize()
     self:SetPos(o:GetPos())
     self:SetAngles(o:GetAngles())
 	self:SetModel(o:GetModel())
+	self:SetColor(o:GetColor())
 	
 	--for mbwarband pmodel bodygroup systems
 	self:SetBodygroup(0, o:GetBodygroup(0))

@@ -31,6 +31,31 @@ CL_FOV = CreateConVar("ms_cl_fov", "120")
 CL_SHOW_DAMAGEINDICATOR = CreateConVar("ms_cl_show_damageindicator", "1")
 SV_TRACER_LIFETIME = CreateConVar("ms_cl_sv_tracers_lifetime", "1")
 
+sound.Add( {
+	name = "hitsound_body",
+	channel = CHAN_ITEM,
+	volume = 1.0,
+	level = 80,
+	pitch = 100,
+	sound = "meleeslasher/hitsound.wav"
+} )
+sound.Add( {
+	name = "hitsound_head",
+	channel = CHAN_ITEM,
+	volume = 1,
+	level = 80,
+	pitch = 70,
+	sound = "meleeslasher/hitsound.wav"
+} )
+sound.Add( {
+	name = "killsound",
+	channel = CHAN_ITEM,
+	volume = 1.0,
+	level = 80,
+	pitch = 100,
+	sound = "meleeslasher/killsound.ogg"
+} )
+
 GAMETYPE = "default"
 GAMETYPE_CONVAR = CreateConVar("ms_sv_next_gametype", "skirmish", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "possible values: skirmish, ffa, tdm")
 GAMETYPE = GAMETYPE_CONVAR:GetString()
@@ -85,13 +110,32 @@ end)
 
 DMG_DATA = {}
 net.Receive("ms_damageindicator", function()
+	local temp_uid = net.ReadUInt(16)  -- UserID
+	local temp_dmg = net.ReadUInt(16)  -- Damage
+	local temp_isheadshot = net.ReadBool()
+	
 	local dmgtable = {
-		[1] = net.ReadUInt(16), -- UserID
-		[2] = net.ReadUInt(16), -- Damage
+		[1] = temp_uid,
+		[2] = temp_dmg,
 		[3] = CurTime() + 6 -- Fade time
 	}
-	-- This still plays the hit sound on very low pings?
-	surface.PlaySound("meleeslasher/" .. ((Player(dmgtable[1]):Health() --[[- dmgtable[2]]) > 1 and "hitsound.wav" or "killsound.ogg"))
+	
+	-- This still plays the hit sound on very low pings? timer.simple fixes this, oddly enough it can't be 0.0 timer either.
+	local p = LocalPlayer()
+	timer.Simple(0.08, function()
+		local strsound = "hitsound_body"
+		if Player(temp_uid):Health() > 1 then
+			if temp_isheadshot then
+				strsound = "hitsound_head"
+			else
+				strsound = "hitsound_body"
+			end
+		else
+			strsound = "killsound"
+		end
+		p:EmitSound(strsound)
+	end)
+	
 	-- Fetch old damage amount, increment
 	for k, v in ipairs(DMG_DATA) do
 		if dmgtable[1] == v[1] then
@@ -216,6 +260,10 @@ do
 		[4] = "ValveBiped.Bip01_Spine2",
 		[5] = "ValveBiped.forward"
 	}
+	local attachment_burnedknight = {
+		[1] = "ValveBiped.Bip01_L_UpperArm",
+		[2] = "ValveBiped.Bip01_R_UpperArm",
+	}
 	-- Current playermodel's BoneIDs
 	local attachid = {
 		[1] = -1,
@@ -223,6 +271,10 @@ do
 		[3] = -1,
 		[4] = -1,
 		[5] = -1
+	}
+	local attachid_burnedknight = {
+		[1] = -1,
+		[2] = -1
 	}
 	local last_y_angle = 0
 	
@@ -238,6 +290,17 @@ do
 			end
 			v = -1
 		end
+		if _p:GetModel() == "models/player/recon/chaosknight/ck_pm.mdl" then
+			for k, v in ipairs(attachment_burnedknight) do
+				for i = 0, _p:GetBoneCount() - 1 do
+					if v == _p:GetBoneName(i) then
+						attachid_burnedknight[k] = i
+						break
+					end
+				end
+				v = -1
+			end
+		end
 		
 		camt.fov = CL_FOV:GetInt()
 		if _p:Alive() and _p:Team() ~= TEAM_SPECTATOR and _p:Team() ~= TEAM_UNASSIGNED and _p:Team() ~= TEAM_CONNECTING then
@@ -245,6 +308,13 @@ do
 				for _, v in ipairs(attachid) do
 					if v ~= -1 then
 						_p:ManipulateBoneScale(v, Vector(1, 1, 1))
+					end
+				end
+				if _p:GetModel() == "models/player/recon/chaosknight/ck_pm.mdl" then
+					for _, v in ipairs(attachid_burnedknight) do
+						if v ~= -1 then
+							_p:ManipulateBoneScale(v, Vector(1, 1, 1))
+						end
 					end
 				end
 				if _p.m_b3rdPersonViewAngleToggle then
@@ -259,6 +329,14 @@ do
 				for _, v in ipairs(attachid) do
 					if v ~= -1 then
 						_p:ManipulateBoneScale(v, Vector())
+					end
+				end
+				
+				if _p:GetModel() == "models/player/recon/chaosknight/ck_pm.mdl" then
+					for _, v in ipairs(attachid_burnedknight) do
+						if v ~= -1 then
+							_p:ManipulateBoneScale(v, Vector(0.5, 0.5, 0.5))
+						end
 					end
 				end
 				if attachid[1] ~= -1 then
