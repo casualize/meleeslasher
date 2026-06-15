@@ -69,7 +69,9 @@ end
 function GT_SKIRMISH.m_fStartRound()
 	local t_p = table.Add(team.GetPlayers(TEAM_RED), team.GetPlayers(TEAM_BLUE))
 		for _, v in pairs(t_p) do
-			v:UnSpectate()
+			if v:Alive() then
+				v:UnSpectate()
+			end
 		end
 	GT_SKIRMISH.m_iState = GT_SKIRMISH.ONGOING
 	timer.Create("ms_EndRoundTimer", GT_SKIRMISH.RoundTime, 1, function() GT_SKIRMISH.m_fEndRound(true) end) -- can't provide args to the function arg alone, wrapping it with a nameless function works though
@@ -134,6 +136,7 @@ function GT_SKIRMISH.PostPlayerDeath(p)
 	GT_SKIRMISH.m_fEndRound(false)
 	p:Spectate(OBS_MODE_ROAMING)
 end
+
 function GT_SKIRMISH.PlayerSpawn(p)
 	if GT_SKIRMISH.m_iState == GT_SKIRMISH.INTERMISSION and p:Team() ~= TEAM_SPECTATOR then
 		timer.Simple(0, function() p:Spectate(OBS_MODE_NONE) end)
@@ -143,12 +146,12 @@ end
 
 function GT_SKIRMISH.PlayerDeathThink(p)
 	if p:Team() == TEAM_SPECTATOR or p:Team() == TEAM_UNASSIGNED or p:Team() == TEAM_CONNECTING then
-		return false
+		return true
 	end
 	
 	if GT_SKIRMISH.m_iState == GT_SKIRMISH.INTERMISSION or GT_SKIRMISH.m_iState == GT_SKIRMISH.WAITING then
-		return true
+		return nil
 	else
-		return false
+		return true
 	end
 end

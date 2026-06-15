@@ -13,6 +13,7 @@ SWEP.WorldModel = Model("models/aoc_weapon/w_flamberge.mdl")
 
 -- CUSTOM SWEP FIELDS
 SWEP.Name = "base"
+SWEP.IsMeleeslasherWeapon = true
 SWEP.ThrustDamage = 10
 SWEP.SwingDamage = 25
 SWEP.Range = 44

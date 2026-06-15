@@ -161,7 +161,7 @@ end
 
 function GM:Think()
 	for _, p in ipairs(player.GetAll()) do
-		if not p.m_bPlayerSpawned then continue end
+		if not p.m_bPlayerSpawned or not p:Alive() then continue end
 		
 		if CurTime() >= p.m_flPrevStamina and p.m_iStamina < p.m_iMaxStamina then
 			self:StaminaUpdate(p, p.m_iStamina + 2, false)
@@ -198,7 +198,7 @@ net.Receive("ms_anim_queue", function(_, p)
 end)
 net.Receive("ms_bind_other", function(_, p)
 	local w = p:GetActiveWeapon()
-	if IsValid(w) then
+	if IsValid(w) and w.IsMeleeslasherWeapon then
 		if net.ReadUInt(3) == OTHER_FEINT then
 			w:Feint()
 		end

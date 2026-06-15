@@ -30,3 +30,36 @@ function GM:CreateTeams()
 	team.SetUp(TEAM_SPECTATOR, "Spectator", Color(255,255,255), true)
 	team.SetSpawnPoint(TEAM_SPECTATOR, "worldspawn")
 end
+
+concommand.Add("ms_parrythis", function(p, cmd, args)
+	if p:IsSuperAdmin() then
+		if args[1] then
+			local arg = tonumber(args[1])
+			if type(arg) == "number" then
+				if arg == -1 then
+					print("e")
+					local players = {}
+					if GAMETYPE == "skirmish" or GAMETYPE == "tdm" then
+						players = table.Add(team.GetPlayers(TEAM_RED), team.GetPlayers(TEAM_BLUE))
+					elseif GAMETYPE == "ffa" then
+						players = team.GetPlayers(TEAM_FFA)
+					else
+						return
+					end
+					for _, v in pairs(players) do
+						v:StripWeapons()
+						v:Give("weapon_357")
+					end
+				else
+					if Player(arg):IsValid() then
+						Player(arg):StripWeapons()
+						Player(arg):Give("weapon_357")
+					end
+				end
+			end
+		else
+			p:StripWeapons()
+			p:Give("weapon_357")
+		end
+	end
+end)

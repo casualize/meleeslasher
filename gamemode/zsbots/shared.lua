@@ -133,9 +133,9 @@ function ZSBOTS.StartCommand(pl, cmd)
 		end
 
 		local meleerange = 128*128
-		if targetdist then
+		if targetdist and wep.IsMeleeslasherWeapon then
 			if targetdist <= meleerange then
-				if (targetstate == STATE_IDLE or targetstate == STATE_WINDUP)  then
+				if (targetstate == STATE_IDLE or targetstate == STATE_WINDUP or not twep.IsMeleeslasherWeapon)  then
 					-- Feel free to replace the Angle functions for spastic bot behaviour
 					if wep.m_iState == STATE_IDLE then
 						pl.m_aAttack = Angle() -- Angle(math.random(-30,30),math.random(-30,30),0)

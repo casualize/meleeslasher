@@ -62,9 +62,12 @@ function SWEP:DamageSimple(iAng, ent, multi)
 	local d = DamageInfo()
 	d:SetDamage(dmg)
 	d:SetAttacker(self:GetOwner())
-	d:SetInflictor(self)
+	d:SetInflictor(self:GetOwner())
 	d:SetDamageType(DMG_SLASH)
+	
+	SuppressHostEvents(NULL) -- this is needed to see blood effect done by the client...
 	ent:TakeDamageInfo(d)
+	SuppressHostEvents(self:GetOwner())
 end
 
 function SWEP:Attack()
@@ -236,7 +239,7 @@ do
 	-- This will update the specific player's wep, not self!
 	function SWEP:StateUpdate(p, s, a, r, f)
 		local w = p:GetActiveWeapon()
-		if IsValid(w) then
+		if IsValid(w) and w.IsMeleeslasherWeapon then
 			w.m_flPrevState = CurTime()
 
 			w.m_iState = s

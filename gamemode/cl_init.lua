@@ -158,7 +158,7 @@ do
 		for k, v in pairs(ATTACK_BIND) do -- Not sequential
 			if bind == v then
 				local w = LocalPlayer():GetActiveWeapon()
-				if IsValid(w) then
+				if IsValid(w) and w.IsMeleeslasherWeapon then
 					w:Queue(k, w.m_bMVDATA)
 				end
 			end
