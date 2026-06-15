@@ -52,7 +52,7 @@ function GM:AddNetworkStrings()
 end
 
 DRAW_SV_TRACERS = CreateConVar("ms_sv_debug_tracers", "0")
-PLAYERMODEL_TYPE = CreateConVar("ms_sv_playermodel_type", "mbwarband", {FCVAR_ARCHIVE}, "possible values: hl2, mbwarband, burnedknight")
+PLAYERMODEL_TYPE = CreateConVar("ms_sv_playermodel_type", "burnedknight", {FCVAR_ARCHIVE}, "possible values: hl2, mbwarband, burnedknight")
 DEBUG_STATES = CreateConVar("ms_sv_debug_states", "0")
 
 GAMETYPE = "default"
@@ -80,6 +80,8 @@ function GM:Initialize()
 			hook.Add(v, "gt_skirmish_" .. v, GT_SKIRMISH[v])
 		end
 	end
+	
+	-- unused, probably remove
 	if GAMETYPE == "ffa" then
 		GAME_NTEAMS = 1
 	end
