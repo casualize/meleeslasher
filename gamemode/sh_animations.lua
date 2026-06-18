@@ -66,7 +66,7 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 			local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
 			local seqid = seq and ply:LookupSequence(seq .. (w.m_bFlip and "_flip" or "")) or nil
 			--print(incr)
-			-- if not seqid then return end -- prevents "AddVCDSequenceToGestureSlot" console error, but this line might impair the animation system
+			if not seqid then return end -- prevents "AddVCDSequenceToGestureSlot" console error, but this line might impair the animation system
 			if w.m_iState == STATE_WINDUP then -- Feint init
 				w.m_flWeight = math.Approach( w.m_flWeight, 1, incr)
 				ply:AddVCDSequenceToGestureSlot(0, seqid, 0, true)
