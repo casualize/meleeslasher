@@ -480,8 +480,8 @@ do
 		["CHudAmmo"] = true,
 		["CHudSecondaryAmmo"] = true,
 		["CHudWeaponSelection"] = true,
-		["CHudGMod"] = true, -- Disables hudpaint hook, this also disables killfeed unfortunately
-		["CHudDamageIndicator"] = true
+		["CHudGMod"] = true -- Disables hudpaint hook, this also disables killfeed unfortunately
+		--["CHudDamageIndicator"] = true
 	}
 	hook.Add("HUDShouldDraw", "ms_HideHUD", function(name)
 		return forbiddenhuds[name] and false

@@ -23,12 +23,22 @@ AddCSLuaFile("gametypes/skirmish/shared.lua")
 include("gametypes/skirmish/shared.lua")
 include("gametypes/skirmish/init.lua")
 
-function GM:StaminaUpdate(ent, i, punish)
+function GM:StaminaUpdate(ent, i, punish, actualpunish)
 	if IsValid(ent) and ent:IsPlayer() then
 		ent.m_flPrevStamina = punish and CurTime() + 4 or ent.m_flPrevStamina
 		if i ~= nil then
 			ent.m_iStamina = math.Clamp(i, 0, ent.m_iMaxStamina)
 		
+			if ent.m_iStamina <= 0 and actualpunish then -- if it works it works.
+				ent:Freeze(true)
+				ent:EmitSound("vo/npc/male01/pain01.wav", 75, 100, 1)
+				self:StaminaUpdate(ent, 40, true)
+				timer.Simple(2, function() 
+					ent:Freeze(false)
+				end)
+				return
+			end
+			
 			net.Start("ms_stamina_update")
 				net.WriteUInt(ent:UserID(), 16)
 				net.WriteUInt(ent.m_iStamina, 8)
@@ -90,6 +100,13 @@ function GM:Initialize()
 	end
 end
 
+hook.Add("OnPlayerJump", "ms_OnPlayerJump", function(p)
+	GAMEMODE:StaminaUpdate(p, p.m_iStamina - 10, true)
+end)
+hook.Add("PostPlayerDeath", "ms_PostPlayerDeath", function(p)
+	p:Freeze(false)
+end)
+
 function GM:OnPlayerChangedTeam()  -- this "deprecated" function was causing spectator to freely spawn into the map after team change. spent ages troubleshooting this issue
 end
 
@@ -103,8 +120,12 @@ function GM:PlayerInitialSpawn(p)
 end
 
 -- function GM:PlayerJoinTeam() -- might want to look into this one as well
-function GM:PlayerNoClip()
-	return true
+function GM:PlayerNoClip(p)
+	if p:IsSuperAdmin() then
+		return true
+	else
+		return false
+	end
 end
 function GM:PlayerShouldTaunt()
 	return false
@@ -192,9 +213,6 @@ function GM:Think()
 		elseif p.m_iStamina <= 20 then
 			if not p.m_soundLowStamina:IsPlaying() then
 				p.m_soundLowStamina:Play()
-			end
-			if p.m_iStamina == 0 then
-				p:SetHealth(0)
 			end
 		end
 	end

@@ -31,7 +31,7 @@ function SWEP:Queue(ianim, bflip)
 	if (self.m_iState == STATE_IDLE and self.m_flPrevState + self.Windup <= CurTime() ) or self.m_bRiposting then
 		
 		if self.m_bRiposting then
-			self:EmitSound("physics/metal/metal_solid_impact_bullet4.wav", 75, math.random(50, 100), 1)
+			o:EmitSound("physics/metal/metal_solid_impact_bullet4.wav", 75, math.random(50, 100), 1)
 		end
 
 		self.m_bFlip = bflip
@@ -155,7 +155,7 @@ function SWEP:Think()
 			})
 			if tr.HitWorld then
 				self:AttackFinish(st, en, self.slashtag)
-				GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
+				GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.StaminaDrain, true)
 				o:EmitSound("physics/concrete/concrete_impact_bullet"..math.random(4)..".wav",75,100,1)
 				break
 			end
@@ -215,7 +215,7 @@ function SWEP:Think()
 			end
 			if self.m_nThink + iAng > self.m_iAngleFinal then
 				self:AttackFinish()
-				GAMEMODE:StaminaUpdate(o,o.m_iStamina - self.StaminaDrain,true)
+				GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.StaminaDrain, true)
 				break
 			end
 		end
@@ -253,7 +253,7 @@ do
 			w.m_iAnim = a
 			w.m_bRiposting = r
 			w.m_bFlip = f
-
+			
 			w:SetState(s or w.m_iState)
 			w:SetAnim(a or w.m_iAnim)
 			w:SetRiposte(r or false)
@@ -312,7 +312,7 @@ end
 function SWEP:Riposte(p)
 	p:EmitSound("physics/metal/metal_solid_impact_bullet"..math.random(2)..".wav",75,100,1)
 	p:ViewPunch(Angle(-2, 0, 0))
-	GAMEMODE:StaminaUpdate(p,p.m_iStamina - 7,true)
+	GAMEMODE:StaminaUpdate(p, p.m_iStamina - 7, true)
 	
 	local w = p:GetActiveWeapon()
 	w.m_flPrevParry = 0.0
@@ -341,7 +341,7 @@ function SWEP:Parry()
 			o:EmitSound("physics/flesh/flesh_impact_hard3.wav", 75, 100, 1)
 			
 			if self.m_iState == STATE_WINDUP then
-				GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.FeintDrain, true) -- FTP punish
+				GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.FeintDrain, true, true) -- FTP punish (not sure what i meant by this comment)
 			elseif self.m_iState == STATE_IDLE then
 				GAMEMODE:StaminaUpdate(o, nil, true)
 			end

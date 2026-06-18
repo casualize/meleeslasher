@@ -55,9 +55,17 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 	if CLIENT then
 		local w = ply:GetActiveWeapon()
 		if IsValid(w) and w.m_flWeight then
-			local incr = w.m_iState ~= STATE_ATTACK and FrameTime() / w.Windup or FrameTime() / (w.Release * w.AngleStrike)
+			local incr = 0.0
+			if w.m_iState == STATE_ATTACK then
+				incr = FrameTime() / (w.Release * w.AngleStrike)
+			elseif w.m_iState == STATE_WINDUP then
+				incr = FrameTime() / w.Windup
+			elseif w.m_iState == STATE_IDLE then
+				incr = FrameTime() / w.Recovery
+			end
 			local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
 			local seqid = seq and ply:LookupSequence(seq .. (w.m_bFlip and "_flip" or "")) or nil
+			--print(incr)
 			-- if not seqid then return end -- prevents "AddVCDSequenceToGestureSlot" console error, but this line might impair the animation system
 			if w.m_iState == STATE_WINDUP then -- Feint init
 				w.m_flWeight = math.Approach( w.m_flWeight, 1, incr)

@@ -46,7 +46,7 @@ function ZSBOTS.StartCommand(pl, cmd)
 	local targetdist
 	local targetunobstructed
 
-	if target:IsValid() then
+	if target:IsValid() and not pl:IsFlagSet(FL_FROZEN) then
 		if not destination then
 			destination = target:GetPos()
 		end
@@ -164,8 +164,10 @@ function ZSBOTS.StartCommand(pl, cmd)
 					cmd:SetForwardMove(-10000)
 				end
 				if wep.m_iState == STATE_PARRY then
-					wep.m_iQueuedAnim = math.random(2, 5)
-					wep.m_bQueuedFlip = math.random() >= 0.5 
+					if not pl:IsFlagSet(FL_FROZEN) then -- workaround for bots to actually abide being no stamina punished
+						wep.m_iQueuedAnim = math.random(2, 5)
+						wep.m_bQueuedFlip = math.random() >= 0.5 
+					end
 				elseif wep.m_iState == STATE_ATTACK then
 					buttons = bit.bor(buttons, IN_FORWARD)
 					cmd:SetForwardMove(10000)
