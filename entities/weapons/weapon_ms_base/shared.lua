@@ -19,13 +19,11 @@ SWEP.SwingDamage = 25
 SWEP.Range = 44
 SWEP.HandleRange = 8
 SWEP.Lunge = 40 -- (u/s)
-SWEP.Release = 0.002
-SWEP.Windup = (2/3) -- Setting this to different values jaepardize animations completely, definitely need a rewrite
-SWEP.Recovery = (2/3)
+SWEP.StrikeRelease = 0.500 -- TODO: Seperate thrust release
+SWEP.Windup = 0.667
+SWEP.Recovery = 0.667
 SWEP.TurnCap = 200
-SWEP.AngleStrike = 200 -- This SHOULD be 235, however animations don't finish correctly on clientside. Rewrite this to sequence duration multiplier? Animations seem smoother if tick speed is higher.
 SWEP.Cleave = true
-SWEP.GlanceAngles = -1 --8 -- Temporary anti-backswing, no idea if this still does something
 SWEP.StaminaDrain = 9
 SWEP.FeintDrain = 7
 
@@ -43,6 +41,7 @@ SWEP.m_flPrevParry = 0.0
 SWEP.m_flPrevRiposte = 0.0
 SWEP.m_flNextAttack = 0.0
 SWEP.m_flPrevFeint = 0.0
+SWEP.m_flPrevAttack = 0.0
 
 SWEP.m_flCycle = 0.0
 SWEP.m_flWeight = 0.0

@@ -178,7 +178,13 @@ do
 		end
 		p:SetBodyGroups(bodygroup) -- set body groups only after setting the model first
 		
-		p:Give("weapon_ms_base")
+		local strPreferredWeapon = p:GetInfo("ms_cl_preferred_weapon")
+		local tablePreferredWeapon = weapons.Get(strPreferredWeapon)
+		if tablePreferredWeapon and tablePreferredWeapon.IsMeleeslasherWeapon and tablePreferredWeapon.Name ~= "weapon_ms_base" then
+			p:Give(strPreferredWeapon)
+		else
+			p:Give("weapon_ms_flamberge")
+		end
 		p:SetCanZoom(false)
 		
 		p:SetWalkSpeed(GAME_MVSPEED)

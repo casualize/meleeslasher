@@ -13,9 +13,6 @@ function SWEP:Initialize()
 	local o = self:GetOwner()
 
 	-- Internal fields
-	self.m_nThink = 0
-	self.m_iAngleFinal = 0
-	self.m_iIncrMul = 0
 	self.m_iAttachID = 0
 	self.m_iSeqID = 0
 end
@@ -52,13 +49,14 @@ local function SV_TRACER_DRAW(tracerst, traceren, bit, tracertag)
 		net.WriteUInt(tracertag, 16)
 	net.Broadcast()
 end
-function SWEP:DamageSimple(iAng, ent, multi)
-	local dmg
-	if self.m_iAnim ~= ANIM_THRUST then
-		dmg = iAng > self.GlanceAngles and self.SwingDamage * multi or 2
-	else
+function SWEP:DamageSimple(ent, multi)
+	local dmg = 0.0
+	if self.m_iAnim == ANIM_THRUST then
 		dmg = self.ThrustDamage * multi
+	else
+		dmg = self.SwingDamage * multi
 	end
+
 	local d = DamageInfo()
 	d:SetDamage(dmg)
 	d:SetDamageBonus(dmg * multi - dmg) -- its one way to communicate that its a headshot to a client. doesn't do anything else otherwise
@@ -76,11 +74,9 @@ function SWEP:Attack()
 	self.m_tFilter[#self.m_tFilter + 1] = o
 	
 	self.slashtag = self:EntIndex()
-	self.m_iAngleFinal = self.m_iAnim ~= ANIM_THRUST and self.AngleStrike or 90 -- Call this elsewhere
-	self.m_iIncrMul = math.floor(engine.TickInterval() / self.Release + 0.5) -- Call this elsewhere
 	
 	o:EmitSound(self.m_soundRelease[math.random(#self.m_soundRelease)] .. ".wav", 75, math.random(80, 100), 1)
-	self:EmitSound("npc/vort/claw_swing" .. math.random(2) .. ".wav", 75, 80, 1)
+	o:EmitSound("npc/vort/claw_swing" .. math.random(2) .. ".wav", 75, 80, 1)
 
 	for i = 0, o:GetBoneCount() - 1 do
 		self.m_iAttachID = o:GetBoneName(i) -- Temporarily set it to a string
@@ -94,7 +90,7 @@ function SWEP:Attack()
 	end
 
 	self:StateUpdate(o, STATE_ATTACK, self.m_iAnim, self.m_bRiposting, self.m_bFlip) -- The packets will not be sent to clients if the first iteration calls attackfinish ?
-
+	self.m_flPrevAttack = CurTime()
 	self.m_iQueuedAnim = ANIM_NONE
 	self.m_bQueuedFlip = false
 end
@@ -135,18 +131,18 @@ function SWEP:Think()
 			end
 		end
 	elseif self.m_iState == STATE_ATTACK then
-		for iAng = 1, (self.Range - self.HandleRange)/4 do -- self.m_iIncrMul
-			if self.m_iSeqID ~= nil  then
-				o:AddVCDSequenceToGestureSlot(0, self.m_iSeqID, (self.m_nThink + iAng) / self.m_iAngleFinal, true) -- Setting gesture here allows manipulating the "playback rate"
-			end
+		if self.m_iSeqID ~= nil  then
+			self.m_flCycle = math.Clamp((CurTime() - self.m_flPrevAttack) / self.StrikeRelease, 0.0, 1.0)
+			o:AddVCDSequenceToGestureSlot(0, self.m_iSeqID, self.m_flCycle, e) -- There's no direct way to slow down a animation sequence, but we can keep setting the start cycle.
+		end
+		for iAng = 1, (self.Range - self.HandleRange)/4 do
 			o:LagCompensation(true)
 			local bm = o:GetBoneMatrix(self.m_iAttachID) -- The returns are fixed on tick...
 			local v = bm:GetTranslation()
 			local a = bm:GetAngles()
 			local back = self.m_iAnim ~= ANIM_THRUST and -(self.Range - self.HandleRange)/2 or 1
-			local back2 = self.m_nThink > 32 and back or 1
 			local st = v + a:Right() * -8 + a:Right() * -iAng * 4 -- Chiv1 way of doing it, need to make it dynamic based on tickrate etc
-			local en = st + a:Up() * back2
+			local en = st + a:Up() * back
 			o:LagCompensation(false)
 			local tr = util.TraceLine({
 				start = st,
@@ -165,7 +161,7 @@ function SWEP:Think()
 						if tr.Entity:GetActiveWeapon().m_iState == STATE_PARRY then
 							self:Riposte(tr.Entity) -- RIPOSTE and PARRY
 						else
-							self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity, tr.HitGroup, tr.HitBox))
+							self:DamageSimple(tr.Entity, self:CheckMulti(tr.Entity, tr.HitGroup, tr.HitBox))
 						end
 						GAMEMODE:StaminaUpdate(o, nil, true)
 						self:AttackFinish(st, en, self.slashtag)
@@ -182,14 +178,14 @@ function SWEP:Think()
 							if not bFilter then
 								self:Flinch(tr.Entity)
 								GAMEMODE:StaminaUpdate(o, o.m_iStamina + 40, true)
-								self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity, tr.HitGroup,  tr.HitBox))
+								self:DamageSimple(tr.Entity, self:CheckMulti(tr.Entity, tr.HitGroup,  tr.HitBox))
 								
 								self.m_tFilter[#self.m_tFilter + 1] = tr.Entity
 							end
 						else
 							self:Flinch(tr.Entity)
 							GAMEMODE:StaminaUpdate(o, o.m_iStamina + 40, true)
-							self:DamageSimple(iAng, tr.Entity, self:CheckMulti(tr.Entity, tr.HitGroup,  tr.HitBox))
+							self:DamageSimple(tr.Entity, self:CheckMulti(tr.Entity, tr.HitGroup,  tr.HitBox))
 							self:AttackFinish(st, en, self.slashtag)
 							break
 						end
@@ -198,28 +194,24 @@ function SWEP:Think()
 				elseif tr.Entity:GetClass() == ("prop_physics_multiplayer" or "prop_physics" or "func_physbox") and tr.Entity:GetPhysicsObject() then -- the "or"s seem not to work
 					tr.Entity:GetPhysicsObject():SetVelocity(tr.Entity:GetVelocity() + (tr.Entity:GetPos()-tr.HitPos)*1000)
 					tr.Entity:EmitSound("physics/metal/metal_barrel_impact_hard"..math.random(3)..".wav", 75, 120, 1)
-					self:DamageSimple(iAng, tr.Entity, 1)
+					self:DamageSimple(tr.Entity, 1)
 					self:AttackFinish(st, en, self.slashtag)
 					GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.StaminaDrain, true)
 					break
 				end
 			end
 			
-			-- Draw DBG Tracers, affiliate it with glance angles
+			-- Draw DBG Tracers
 			if DRAW_SV_TRACERS:GetBool() and tr.Entity == NULL then
-				local idx = 1
-				if self.m_iAnim ~= ANIM_THRUST then
-					idx = iAng > self.GlanceAngles and 1 or 2
-				end
+				local idx = 1 -- used to point to a different color table
 				SV_TRACER_DRAW(st, en, idx, self.slashtag)
 			end
-			if self.m_nThink + iAng > self.m_iAngleFinal then
+			if CurTime() > self.m_flPrevAttack + self.StrikeRelease then
 				self:AttackFinish()
 				GAMEMODE:StaminaUpdate(o, o.m_iStamina - self.StaminaDrain, true)
 				break
 			end
 		end
-		self.m_nThink = self.m_nThink + self.m_iIncrMul
 	end
 end
 
@@ -265,15 +257,13 @@ do
 			end
 
 			local seq = DEF_ANM_SEQUENCES[w.m_iState][w.m_iAnim]
-			self.m_iSeqID = seq ~= nil and p:LookupSequence(seq .. (f and "_flip" or "")) or nil
+			self.m_iSeqID = seq ~= nil and p:LookupSequence(seq .. (f and "_flip" or "")) or 0
 		end
 	end
 end
 
 function SWEP:AttackFinish(tracerst, traceren, tracertag)
 	local o = self:GetOwner()
-
-	self.m_nThink = 0
 	
 	self:StateUpdate(o, STATE_IDLE, self.m_iAnim, false, self.m_bFlip)
 

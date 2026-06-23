@@ -30,6 +30,7 @@ CLIENT_BIND = {
 CL_FOV = CreateConVar("ms_cl_fov", "120")
 CL_SHOW_DAMAGEINDICATOR = CreateConVar("ms_cl_show_damageindicator", "1")
 SV_TRACER_LIFETIME = CreateConVar("ms_cl_sv_tracers_lifetime", "1")
+CL_PREFERRED_WEAPON = CreateConVar("ms_cl_preferred_weapon", "weapon_ms_flamberge", {FCVAR_ARCHIVE, FCVAR_USERINFO})
 
 sound.Add( {
 	name = "hitsound_body",

@@ -57,16 +57,21 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 		if IsValid(w) and w.m_flWeight then
 			local incr = 0.0
 			if w.m_iState == STATE_ATTACK then
-				incr = FrameTime() / (w.Release * w.AngleStrike)
+				incr = FrameTime() / (w.StrikeRelease)
 			elseif w.m_iState == STATE_WINDUP then
 				incr = FrameTime() / w.Windup
 			elseif w.m_iState == STATE_IDLE then
 				incr = FrameTime() / w.Recovery
 			end
 			local seq = DEF_ANM_SEQUENCES[STATE_ATTACK][w.m_iAnim]
-			local seqid = seq and ply:LookupSequence(seq .. (w.m_bFlip and "_flip" or "")) or nil
-			--print(incr)
-			if not seqid then return end -- prevents "AddVCDSequenceToGestureSlot" console error, but this line might impair the animation system
+			local seqid = 0
+			if seq ~= nil then
+				local strSeqWithFlip = seq
+				if w.m_bFlip then -- w.m_bFlip state doesn't update in time for GM:UpdateAnimation, especially if non host
+					strSeqWithFlip = seq .. "_flip"
+				end
+				seqid = ply:LookupSequence(strSeqWithFlip)
+			end
 			if w.m_iState == STATE_WINDUP then -- Feint init
 				w.m_flWeight = math.Approach( w.m_flWeight, 1, incr)
 				ply:AddVCDSequenceToGestureSlot(0, seqid, 0, true)
@@ -76,6 +81,7 @@ function GM:UpdateAnimation( ply, velocity, maxseqgroundspeed )
 			elseif w.m_iState == STATE_ATTACK then
 				w.m_flWeight = 1
 				w.m_flCycle = math.Approach( w.m_flCycle, 1, incr)
+				ply:AddVCDSequenceToGestureSlot(0, seqid, w.m_flCycle, true)
 			elseif w.m_iState == STATE_IDLE then
 				if w.m_iPrevState == STATE_WINDUP then -- Feint cancel, also recovery from flinch
 					w.m_flWeight = math.Approach( w.m_flWeight, 0, incr)
